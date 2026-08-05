@@ -245,17 +245,7 @@ SFT 冷启动
 - 错类目 - 虚假优惠 - 高退货风险 - 无证据解释 - 用户打扰
 ```
 
-## 9. 简历描述
-
-```text
-VideoShopAgent：面向短视频电商的多模态推荐 Agentic RL 项目
-- 构建短视频电商 Agentic RL 环境，模拟用户刷视频过程中的商品曝光、点击、加购、购买、组合购买、跳过和退货等多轮轨迹。
-- 设计包含用户画像、观看历史、视频场景、商品图文、评论、价格和库存的状态空间，以及商品卡、优惠券、评论摘要、替代品/搭配推荐、延迟推荐等动作空间。
-- 融合 ABO、Amazon ESCI、Amazon Reviews、RetailRocket/OTTO 等公开数据，构造冷启动用户/商品/场景 Ground Truth 和可控 reward model。
-- 实现规则、相似度检索和 LLM 工具调用 baseline，探索 SFT + Agentic RL 优化推荐动作选择、工具调用和有证据的购买决策解释。
-```
-
-## 10. 协作约定
+## 9. 协作约定
 
 ```text
 main:
@@ -268,20 +258,8 @@ feature/*:
   功能开发分支，例如 feature/simulator-env、feature/reward-model、feature/tool-policy。
 ```
 
-建议两人分工：
-
-```text
-Agent / 算法主线：
-  feature/tool-policy
-  feature/reward-model
-  feature/agentic-rl
-
-数据 / 环境主线：
-  feature/simulator-env
-  feature/mock-data
-  feature/evaluation
 ```
 
-## 11. License
+## 10. License
 
 本仓库代码使用 Apache-2.0 License。外部公开数据集需遵守其各自的 license 和使用条款。
