@@ -61,12 +61,22 @@ VideoShopAgent/
   src/
     videoshop/
       __init__.py
-      schemas.py
-      env.py
-      reward.py
-      user_simulator.py
-      policies.py
-      trajectory.py
+      simulator/
+        schemas.py
+        env.py
+        feed.py
+        tools.py
+        state.py
+        reward.py
+        user_simulator.py
+        rollout.py
+        evaluator.py
+        trajectory.py
+      policies/
+        random.py
+        rule_based.py
+      data/
+        mock.py
   tests/
     test_reward.py
 ```
@@ -173,6 +183,21 @@ outputs/trajectories/mock_trajectories.jsonl
 outputs/reports/mock_eval_summary.json
 ```
 
+评测摘要示例：
+
+```json
+{
+  "episodes": 100,
+  "avg_reward": 12.4,
+  "avg_steps": 5.8,
+  "ctr": 0.42,
+  "add_to_cart_rate": 0.18,
+  "purchase_rate": 0.08,
+  "interruption_rate": 0.12,
+  "policy": "RuleBasedPolicy"
+}
+```
+
 每条 episode 包含：
 
 ```json
@@ -255,9 +280,7 @@ dev:
   日常集成分支。
 
 feature/*:
-  功能开发分支，例如 feature/simulator-env、feature/reward-model、feature/tool-policy。
-```
-
+  功能开发分支，例如 feature/simulator-core、feature/reward-model、feature/tool-policy。
 ```
 
 ## 10. License
