@@ -1,0 +1,17 @@
+seed: 42
+episode:
+  max_steps: 8
+  default_episodes: 100
+reward:
+  click_product_card: 1.0
+  increase_watch_time: 1.0
+  add_to_cart: 3.0
+  purchase: 10.0
+  bundle_purchase: 15.0
+  ad_click: 2.0
+  high_margin_purchase: 2.0
+  inventory_clearance_purchase: 2.0
+  return_or_refund: -8.0
+  irrelevant_recommendation: -3.0
+  interrupt_user_experience: -2.0
+
