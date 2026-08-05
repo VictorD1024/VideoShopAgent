@@ -1,5 +1,7 @@
 # VideoShopAgent
 
+![VideoShopAgent architecture](docs/assets/videoshopagent-architecture.png)
+
 面向短视频电商的多模态购物推荐 Agent 项目，核心包含 `VideoShopSimulator` 仿真环境，用于生成用户-智能体交互轨迹，并支持 SFT、DPO 和 Agentic RL 训练评测。
 
 本项目借鉴 ShopSimulator 的交互式购物智能体思想，但将场景从“用户主动搜索购物”扩展到“用户刷短视频时被内容触发购买意图”。系统模拟用户在短视频流中的观看、点击、加购、购买、组合购买、跳过和退货等行为，用于生成 Agent 轨迹数据，并评测短视频电商推荐智能体的多步决策能力。
