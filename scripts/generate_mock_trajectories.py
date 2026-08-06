@@ -18,20 +18,20 @@ from videoshop.trajectory import write_jsonl
 
 def build_mock_states() -> list[EnvState]:
     products = [
-        Product("P001", "Acrylic Desk Organizer", "home organization", 24.99, 4.6, 430, 0.18, tags=["minimal", "desk"]),
-        Product("P002", "Cable Organizer Box", "home organization", 15.99, 4.4, 210, 0.12, is_clearance=True, tags=["clean", "desk"]),
-        Product("P003", "Portable Camping Lantern", "camping", 29.99, 4.7, 120, 0.10, is_high_margin=True, tags=["outdoor"]),
-        Product("P004", "Makeup Brush Organizer", "beauty", 19.99, 4.5, 260, 0.22, tags=["aesthetic"]),
+        Product("P001", "亚克力桌面收纳盒", "家居收纳", 24.99, 4.6, 430, 0.18, tags=["极简", "桌面"]),
+        Product("P002", "桌面理线收纳盒", "家居收纳", 15.99, 4.4, 210, 0.12, is_clearance=True, tags=["整洁", "桌面"]),
+        Product("P003", "便携露营营地灯", "户外露营", 29.99, 4.7, 120, 0.10, is_high_margin=True, tags=["户外"]),
+        Product("P004", "化妆刷桌面收纳架", "美妆收纳", 19.99, 4.5, 260, 0.22, tags=["高颜值"]),
     ]
     users = [
-        UserProfile("U001", "US", "medium", ["minimal", "clean"], ["home organization"], 0.45, 0.2, 0.35),
-        UserProfile("U002", "US", "low", ["outdoor"], ["camping"], 0.8, 0.35, 0.4),
-        UserProfile("U003", "UK", "medium", ["aesthetic"], ["beauty"], 0.55, 0.25, 0.3),
+        UserProfile("U001", "美国", "中等预算", ["极简", "整洁"], ["家居收纳"], 0.45, 0.2, 0.35),
+        UserProfile("U002", "美国", "低预算", ["户外"], ["户外露营"], 0.8, 0.35, 0.4),
+        UserProfile("U003", "英国", "中等预算", ["高颜值"], ["美妆收纳"], 0.55, 0.25, 0.3),
     ]
     videos = [
-        VideoContext("V001", "Small desk makeover for tiny apartment", "home office desk setup", ["organizer", "lamp", "keyboard"], ["minimal", "clean"], "home lifestyle"),
-        VideoContext("V002", "Weekend camping gear setup", "camping outdoor setup", ["lantern", "chair", "tent"], ["outdoor"], "travel creator"),
-        VideoContext("V003", "Minimal vanity organization", "beauty desk organization", ["brush", "mirror", "organizer"], ["aesthetic"], "beauty creator"),
+        VideoContext("V001", "小户型桌面改造：把办公桌整理干净", "家居收纳 桌面布置", ["收纳", "台灯", "键盘"], ["极简", "整洁"], "家居生活创作者"),
+        VideoContext("V002", "周末露营装备清单：轻量又实用", "户外露营 装备布置", ["营地灯", "折叠椅", "帐篷"], ["户外"], "旅行创作者"),
+        VideoContext("V003", "极简化妆台收纳：刷具和镜子这样放", "美妆收纳 桌面整理", ["化妆刷", "镜子", "收纳"], ["高颜值"], "美妆创作者"),
     ]
 
     states: list[EnvState] = []
@@ -96,6 +96,8 @@ def generate(episodes: int, seed: int) -> tuple[list[dict], dict]:
         "avg_reward": sum(total_rewards) / len(total_rewards),
         "purchase_rate": purchases / episodes,
         "policy": "RuleBasedPolicy",
+        "language": "zh-CN",
+        "说明": "JSON 字段名保持英文，轨迹中的场景、商品、用户画像和动作解释默认使用中文。",
     }
     return rows, summary
 

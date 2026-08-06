@@ -307,16 +307,16 @@ Reward 必须自动可计算，不能把 LLM-as-judge 作为唯一主 reward。
   "episode_id": "E000001",
   "user_profile": {
     "user_id": "U001",
-    "country": "US",
-    "budget_level": "medium"
+    "country": "美国",
+    "budget_level": "中等预算"
   },
   "steps": [
     {
       "t": 1,
       "state": {
         "current_video": {
-          "scene": "home office desk setup",
-          "detected_objects": ["organizer", "lamp", "keyboard"]
+          "scene": "家居收纳 桌面布置",
+          "detected_objects": ["收纳", "台灯", "键盘"]
         },
         "session_state": {
           "recent_skips": 0
@@ -326,7 +326,7 @@ Reward 必须自动可计算，不能把 LLM-as-judge 作为唯一主 reward。
         {
           "tool": "retrieve_candidates",
           "input": {
-            "scene": "home office desk setup"
+            "scene": "家居收纳 桌面布置"
           },
           "output": {
             "candidate_product_ids": ["P001", "P002"]
@@ -336,7 +336,7 @@ Reward 必须自动可计算，不能把 LLM-as-judge 作为唯一主 reward。
       "action": {
         "type": "show_product_card",
         "product_id": "P001",
-        "reason": "Matches desk setup scene and user's minimal style preference."
+        "reason": "商品与用户兴趣或当前视频场景具备相关性，展示商品卡。"
       },
       "user_response": {
         "clicked": true,
@@ -447,4 +447,3 @@ ShopSimulator:
 VideoShopSimulator:
   用户刷视频，Agent 决定商品曝光、优惠券、替代品、解释和延迟推荐。
 ```
-

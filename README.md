@@ -39,7 +39,28 @@ VideoShopAgent 关注更高层的决策问题：
 - 生成可用于 SFT、DPO、RL 或 Agent 评测的多轮交互轨迹。
 - 支持规则策略、相似度策略、LLM 工具调用策略和后续 Agentic RL 策略对比。
 
-## 3. 目录结构
+## 3. 中文使用环境
+
+本项目默认面向中文使用环境：
+
+```text
+代码接口、JSON 字段名、类名和函数名：保持英文，方便工程开发和后续训练。
+文档、CLI 输出说明、mock 视频场景、商品标题、用户画像和 Agent 动作解释：默认使用中文。
+```
+
+轨迹数据采用“英文 key + 中文自然语言 value”的形式，例如：
+
+```json
+{
+  "episode_id": "E000001",
+  "action": {
+    "action_type": "show_product_card",
+    "reason": "商品与用户兴趣和当前视频场景匹配，展示商品卡。"
+  }
+}
+```
+
+## 4. 目录结构
 
 ```text
 VideoShopAgent/
@@ -73,7 +94,7 @@ VideoShopAgent/
     test_reward.py
 ```
 
-## 4. 环境抽象
+## 5. 环境抽象
 
 ### State
 
@@ -147,7 +168,7 @@ delay_recommendation
 
 不把“用户满意度 LLM-as-judge”作为唯一主 reward。LLM 可以辅助生成场景、用户画像和解释文本，但主 reward 必须能由结构化日志、规则和工具证据自动计算。
 
-## 5. 数据规划
+## 6. 数据规划
 
 第一阶段使用 mock 数据跑通仿真闭环。
 
@@ -160,7 +181,7 @@ delay_recommendation
 | Amazon Reviews / UCSD | 评论、评分、卖点、痛点和退货风险估计 |
 | RetailRocket / OTTO | 浏览、加购、购买行为，用于校准用户响应概率和 reward |
 
-## 6. 最小运行目标
+## 7. 最小运行目标
 
 第一版目标是生成 100 条 mock episode：
 
@@ -194,7 +215,7 @@ outputs/reports/mock_eval_summary.json
 }
 ```
 
-## 7. Baseline 策略
+## 8. Baseline 策略
 
 MVP 阶段至少实现三类 baseline：
 
@@ -214,7 +235,7 @@ MVP 阶段至少实现三类 baseline：
 - SFTPolicy
 - AgenticRLPolicy
 
-## 8. Agentic RL 方向
+## 9. Agentic RL 方向
 
 当环境和轨迹生成稳定后，下一步可以做：
 
@@ -247,7 +268,7 @@ SFT 冷启动
 - 错类目 - 虚假优惠 - 高退货风险 - 无证据解释 - 用户打扰
 ```
 
-## 9. 协作约定
+## 10. 协作约定
 
 ```text
 main:
@@ -262,6 +283,6 @@ feature/*:
 
 ```
 
-## 10. License
+## 11. License
 
 本仓库代码使用 Apache-2.0 License。外部公开数据集需遵守其各自的 license 和使用条款。

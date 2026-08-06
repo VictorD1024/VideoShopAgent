@@ -28,29 +28,29 @@ class RandomPolicy:
             action_type=action_type,
             product_id=product.product_id if product else None,
             product_ids=[product.product_id] if product else [],
-            reason="Random baseline action.",
+            reason="随机基线策略动作。",
         )
 
 
 class RuleBasedPolicy:
     def act(self, state: EnvState) -> AgentAction:
         if state.user_profile.ad_fatigue > 0.75 or state.session_state.recent_skips >= 3:
-            return AgentAction(action_type="delay_recommendation", reason="User has high ad fatigue or recent skips.")
+            return AgentAction(action_type="delay_recommendation", reason="用户广告疲劳较高或近期连续跳过推荐，暂缓推荐。")
 
         product = self._best_product(state)
         if product is None:
-            return AgentAction(action_type="delay_recommendation", reason="No candidate product.")
+            return AgentAction(action_type="delay_recommendation", reason="当前没有可用候选商品，暂缓推荐。")
 
         match_score = score_product_match(state, product)
         if match_score < 0.25:
-            return AgentAction(action_type="delay_recommendation", reason="Best product is weakly related to current context.")
+            return AgentAction(action_type="delay_recommendation", reason="最佳候选商品与当前视频场景和用户兴趣相关性较弱，暂缓推荐。")
         if product.review_risk > 0.35:
-            return AgentAction(action_type="show_review_summary", product_id=product.product_id, reason="Product matches context but has review risk.")
-        if state.user_profile.price_sensitivity > 0.65 and state.user_profile.budget_level == "low":
-            return AgentAction(action_type="show_coupon", product_id=product.product_id, reason="User is price sensitive.")
+            return AgentAction(action_type="show_review_summary", product_id=product.product_id, reason="商品与用户兴趣或当前视频场景具备相关性，但评论风险较高，先展示评论摘要降低误购风险。")
+        if state.user_profile.price_sensitivity > 0.65 and state.user_profile.budget_level == "低预算":
+            return AgentAction(action_type="show_coupon", product_id=product.product_id, reason="用户价格敏感且预算较低，优先展示优惠券促进转化。")
         if match_score > 0.65:
-            return AgentAction(action_type="recommend_bundle", product_id=product.product_id, product_ids=[product.product_id], reason="Strong context match; try bundle conversion.")
-        return AgentAction(action_type="show_product_card", product_id=product.product_id, reason="Product matches user and video context.")
+            return AgentAction(action_type="recommend_bundle", product_id=product.product_id, product_ids=[product.product_id], reason="商品与视频场景和用户兴趣高度匹配，尝试组合推荐提升客单价。")
+        return AgentAction(action_type="show_product_card", product_id=product.product_id, reason="商品与用户兴趣或当前视频场景具备相关性，展示商品卡。")
 
     def _best_product(self, state: EnvState) -> Product | None:
         if not state.candidate_products:
@@ -59,4 +59,3 @@ class RuleBasedPolicy:
             state.candidate_products,
             key=lambda product: score_product_match(state, product) + 0.05 * product.rating - 0.2 * product.review_risk,
         )
-
