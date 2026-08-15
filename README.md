@@ -1,8 +1,8 @@
 # VideoShopAgent
 
-面向短视频电商的多模态购物推荐 Agent 项目，核心包含 `VideoShopSimulator` 仿真环境，用于生成用户-智能体交互轨迹，并支持 SFT、DPO 和 Agentic RL 训练评测。
+面向短视频电商的多模态购物推荐 Agent 项目，核心包含 `VideoShopEnv` 仿真环境，用于生成用户-智能体交互轨迹，并支持 SFT、DPO 和 Agentic RL 训练评测。
 
-本项目借鉴 ShopSimulator 的交互式购物智能体思想，但将场景从“用户主动搜索购物”扩展到“用户刷短视频时被内容触发购买意图”。系统模拟用户在短视频流中的观看、点击、加购、购买、组合购买、跳过和退货等行为，用于生成 Agent 轨迹数据，并评测短视频电商推荐智能体的多步决策能力。
+系统模拟用户在短视频流中的观看、点击、加购、购买、组合购买、跳过和退货等行为，用于生成 Agent 轨迹数据，并评测短视频电商推荐智能体的多步决策能力。
 
 核心问题：
 
@@ -56,8 +56,10 @@ VideoShopAgent/
   outputs/
     trajectories/     # 生成的 episode 轨迹
     reports/          # 离线评测报告
+    datasets/         # SFT、DPO、RL 训练数据
   scripts/
     generate_mock_trajectories.py
+    export_training_data.py
   src/
     videoshop/
       __init__.py
@@ -77,6 +79,8 @@ VideoShopAgent/
         rule_based.py
       data/
         mock.py
+      training/
+        exporters.py
   tests/
     test_reward.py
 ```
@@ -239,29 +243,30 @@ MVP 阶段至少实现三类 baseline：
 
 ## 8. Agentic RL 方向
 
-当环境和轨迹生成稳定后，下一步可以做：
+当前已经支持从 `VideoShopEnv` 生成三类训练数据：
 
 ```text
 SFT:
-  使用规则策略和相似度策略生成高质量轨迹，训练 action prediction。
+  state -> tool calls -> final action
+  用于训练 Agent 模仿专家策略完成工具调用和动作选择。
 
 Preference / DPO:
-  基于 total reward 或人工偏好构造好坏轨迹对。
+  prompt -> chosen action / rejected hard negative
+  hard negative 覆盖虚假优惠、错过替代、高风险未解释、错类目、过早打扰和无证据解释。
 
 RL:
-  在环境中优化推荐动作、工具调用顺序和转化策略。
+  state, action, reward, next_state, done
+  用于在环境中优化推荐动作、工具调用顺序和长期转化策略。
 ```
 
-ShopSimulator 最值得借鉴的是：
+导出命令：
 
-```text
-金标/约束
-可 rollout 环境
-SFT 冷启动
-再用 RL 优化策略
+```bash
+python scripts/generate_mock_trajectories.py --episodes 100 --seed 42
+python scripts/export_training_data.py \
+  --input outputs/trajectories/mock_trajectories.jsonl \
+  --out-dir outputs/datasets
 ```
-
-本项目搬用这套工程骨架，但不复刻“对话导购”场景，而是落在短视频内容流里的商品推荐、优惠券、替代商品和推荐解释决策。
 
 训练目标不是单纯提升点击，而是联合优化：
 

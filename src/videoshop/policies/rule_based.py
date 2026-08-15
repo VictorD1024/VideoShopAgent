@@ -35,7 +35,7 @@ class RuleBasedPolicy:
             )
 
         if state.user_profile.price_sensitivity > 0.65:
-            coupon_call = get_coupon(product, state.user_profile.user_id)
+            coupon_call = get_coupon(state, product)
             tool_calls.append(coupon_call)
             if coupon_call.output["available"]:
                 return AgentAction(
@@ -63,4 +63,3 @@ class RuleBasedPolicy:
             reason="Top ranked product matches user and video context.",
             tool_calls=tool_calls,
         )
-

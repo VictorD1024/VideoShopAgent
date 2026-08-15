@@ -19,7 +19,8 @@ class UserSimulator:
         interrupted = self.rng.random() < min(0.75, state.user_profile.ad_fatigue + 0.05 * state.session_state.recent_skips)
 
         explanation_boost = 0.08 if action.action_type == "show_explanation" and action.evidence else 0.0
-        coupon_boost = 0.10 if action.action_type == "show_coupon" and product and product.has_coupon else 0.0
+        coupon_available = bool(action.evidence.get("coupon", {}).get("available"))
+        coupon_boost = 0.10 if action.action_type == "show_coupon" and product and coupon_available else 0.0
         substitute_boost = 0.05 if action.action_type == "switch_to_substitute" else 0.0
 
         click_prob = 0.08 + 0.55 * match_score + explanation_boost
@@ -41,4 +42,3 @@ class UserSimulator:
             interrupted=interrupted,
             metadata={"match_score": match_score},
         )
-

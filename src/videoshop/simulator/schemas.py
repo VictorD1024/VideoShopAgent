@@ -56,11 +56,22 @@ class SessionState:
 
 
 @dataclass
+class CommerceContext:
+    coupon_inventory: dict[str, int] = field(default_factory=dict)
+    coupon_thresholds: dict[str, float] = field(default_factory=dict)
+    coupon_expiry_steps: dict[str, int] = field(default_factory=dict)
+    campaign_budget: float = 0.0
+    stock_pressure: dict[str, float] = field(default_factory=dict)
+    risk_constraints: dict[str, float] = field(default_factory=lambda: {"max_review_risk": 0.35})
+
+
+@dataclass
 class EnvState:
     user_profile: UserProfile
     session_state: SessionState
     current_video: VideoContext
     candidate_products: list[Product]
+    commerce_context: CommerceContext = field(default_factory=CommerceContext)
 
 
 @dataclass
@@ -98,4 +109,3 @@ class StateUpdate:
     ad_fatigue_delta: float = 0.0
     interest_updates: dict[str, float] = field(default_factory=dict)
     episode_done: bool = False
-

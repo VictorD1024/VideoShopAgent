@@ -17,6 +17,17 @@ def apply_state_update(
     if product and action.action_type != "delay_recommendation":
         session.exposed_products.append(product.product_id)
 
+    if product and action.action_type == "show_coupon" and action.evidence.get("coupon", {}).get("available"):
+        session.used_coupons.append(product.product_id)
+        state.commerce_context.coupon_inventory[product.product_id] = max(
+            0,
+            state.commerce_context.coupon_inventory.get(product.product_id, 0) - 1,
+        )
+        state.commerce_context.campaign_budget = max(
+            0.0,
+            state.commerce_context.campaign_budget - product.coupon_discount,
+        )
+
     if product and response.clicked:
         session.recent_clicks.append(product.product_id)
         update.purchase_intent_delta += 0.10
@@ -37,6 +48,8 @@ def apply_state_update(
 
     if response.purchased:
         update.episode_done = True
+        if product:
+            product.inventory = max(0, product.inventory - 1)
 
     user.purchase_intent = _clamp(user.purchase_intent + update.purchase_intent_delta)
     user.ad_fatigue = _clamp(user.ad_fatigue + update.ad_fatigue_delta)
@@ -48,4 +61,3 @@ def apply_state_update(
 
 def _clamp(value: float, min_value: float = 0.0, max_value: float = 1.0) -> float:
     return max(min_value, min(max_value, value))
-

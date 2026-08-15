@@ -30,6 +30,7 @@ def compute_reward(
 ) -> float:
     cfg = config or RewardConfig()
     reward = 0.0
+    coupon_available = bool(action.evidence.get("coupon", {}).get("available"))
 
     if response.clicked:
         reward += cfg.click_product_card
@@ -37,7 +38,7 @@ def compute_reward(
         reward += cfg.add_to_cart
     if response.purchased:
         reward += cfg.purchase_proxy
-    if action.action_type == "show_coupon" and product and product.has_coupon:
+    if action.action_type == "show_coupon" and product and coupon_available:
         reward += cfg.valid_coupon
     if action.action_type == "switch_to_substitute" and product:
         reward += cfg.valid_substitute
@@ -46,7 +47,7 @@ def compute_reward(
 
     if not category_match and action.action_type != "delay_recommendation":
         reward += cfg.wrong_category
-    if action.action_type == "show_coupon" and product and not product.has_coupon:
+    if action.action_type == "show_coupon" and not coupon_available:
         reward += cfg.fake_coupon
     if product and product.review_risk >= 0.35 and action.action_type != "show_explanation":
         reward += cfg.unexplained_return_risk
@@ -58,4 +59,3 @@ def compute_reward(
         reward += cfg.return_or_refund
 
     return reward
-
