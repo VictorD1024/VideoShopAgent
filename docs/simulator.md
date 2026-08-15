@@ -411,19 +411,19 @@ LLMToolCallingPolicy:
 ## 11. 最小实现模块
 
 ```text
-src/videoshop/feed.py
+src/videoshop/simulator/feed.py
   视频流生成和下一条视频采样。
 
-src/videoshop/state_update.py
+src/videoshop/simulator/state.py
   根据用户反馈更新兴趣、购买意图、广告疲劳和购物车。
 
-src/videoshop/tools.py
+src/videoshop/simulator/tools.py
   5 个闭集工具的 mock 实现。
 
-src/videoshop/rollout.py
+src/videoshop/simulator/rollout.py
   episode rollout loop。
 
-src/videoshop/evaluator.py
+src/videoshop/simulator/evaluator.py
   reward、转化率、风险和解释证据评测。
 ```
 
