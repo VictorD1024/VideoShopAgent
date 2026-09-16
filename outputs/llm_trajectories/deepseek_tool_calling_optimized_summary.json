@@ -1,0 +1,15 @@
+{
+  "model": "deepseek-v4-flash",
+  "episodes": 10,
+  "successful_episodes": 10,
+  "failed_episodes": 0,
+  "scenarios": 10,
+  "avg_reward": 3.2,
+  "avg_steps": 1.9,
+  "purchase_rate": 0.1,
+  "constraint_violations": 0,
+  "fake_coupon_count": 0,
+  "unsupported_explanation_count": 0,
+  "category_mismatch_count": 0,
+  "return_or_refund_count": 0
+}

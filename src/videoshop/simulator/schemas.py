@@ -109,3 +109,47 @@ class StateUpdate:
     ad_fatigue_delta: float = 0.0
     interest_updates: dict[str, float] = field(default_factory=dict)
     episode_done: bool = False
+
+
+@dataclass
+class Observation:
+    task: str
+    user_summary: dict[str, Any]
+    session_summary: dict[str, Any]
+    current_video: dict[str, Any]
+    visible_candidates: list[dict[str, Any]]
+    commerce_signals: dict[str, Any]
+    allowed_tools: list[str]
+    allowed_actions: list[str]
+    last_step: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class ToolCallRequest:
+    tool: str
+    args: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class ToolCallResult:
+    tool: str
+    input: dict[str, Any]
+    output: dict[str, Any]
+    success: bool = True
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class FinalAction:
+    action_type: str
+    product_id: str | None = None
+    reason: str = ""
+    evidence_refs: list[str] = field(default_factory=list)
+    reasoning_summary: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class AgentStep:
+    tool_requests: list[ToolCallRequest] = field(default_factory=list)
+    final_action: FinalAction | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)

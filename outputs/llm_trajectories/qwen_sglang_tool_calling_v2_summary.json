@@ -1,0 +1,17 @@
+{
+  "model": "Qwen3.8-27B",
+  "episodes": 10,
+  "successful_episodes": 10,
+  "failed_episodes": 0,
+  "scenarios": 10,
+  "avg_reward": 6.8,
+  "avg_steps": 3.6,
+  "purchase_rate": 0.2,
+  "constraint_violations": 0,
+  "fake_coupon_count": 0,
+  "unsupported_explanation_count": 0,
+  "category_mismatch_count": 0,
+  "return_or_refund_count": 0,
+  "reasoning_summary_steps": 35,
+  "reasoning_summary_coverage": 0.9722222222222222
+}

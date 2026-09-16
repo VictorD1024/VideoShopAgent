@@ -16,9 +16,11 @@ data/processed/*
 data/synthetic/*
 outputs/trajectories/*
 outputs/reports/*
+outputs/benchmarks/*
 
 !data/raw/README.md
 !data/processed/README.md
 !data/synthetic/README.md
 !outputs/trajectories/README.md
 !outputs/reports/README.md
+!outputs/benchmarks/README.md

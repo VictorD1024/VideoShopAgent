@@ -230,3 +230,88 @@ VideoShopAgent/
 ## License
 
 本项目使用 Apache-2.0 License。外部数据集需遵守其各自的 license 和使用条款。
+
+## Toy Benchmark
+
+运行固定的 VideoShopEnv toy benchmark：
+
+```bash
+python scripts/run_benchmark.py --policy rule_based --episodes-per-scenario 1 --seed 42
+```
+
+输出文件：
+
+```text
+outputs/benchmarks/toy_episodes.jsonl
+outputs/benchmarks/toy_summary.json
+```
+
+当前 toy split 包含 10 个固定场景，覆盖有效优惠券、虚假优惠券陷阱、高风险商品、替代品、广告疲劳、类目错配、过期优惠券、库存压力、grounded explanation 和低库存保护。
+
+如果要生成更大规模冷启动数据，可以使用 synthetic commerce split：
+
+```bash
+python scripts/run_benchmark.py \
+  --split synthetic \
+  --policy rule_based \
+  --synthetic-categories 12 \
+  --synthetic-products-per-category 80 \
+  --synthetic-scenarios 50 \
+  --synthetic-candidate-pool-size 32 \
+  --out outputs/benchmarks/synthetic_episodes.jsonl \
+  --report outputs/benchmarks/synthetic_summary.json
+```
+
+synthetic split 会生成更大的商品目录、优惠券库存、库存压力、用户画像、视频流和类型化场景，包括有效优惠券、虚假优惠券陷阱、高风险解释、替代品、疲劳延迟、低库存保护、清仓库存压力和类目错配陷阱。每个 scenario 只暴露有限候选池，避免 prompt 过长，同时底层 catalog 可以继续扩大。
+
+## Function Calling Agent
+
+VideoShopEnv 内部仍以 `AgentStep` 作为标准协议，同时在 `videoshop.agents` 下新增了 provider 风格 function/tool calling 适配层。最小脚本示例：
+
+```bash
+python examples/function_calling_agent.py
+```
+
+当前工具 schema 包括 `retrieve_candidates`、`rank_products`、`get_coupon`、`find_substitute`、`explain_recommendation` 和 `submit_final_action`。外部模型返回的 tool calls 会先归一化为 `AgentStep`，再传给 `env.step_agent(...)`。
+
+### SGLang / OpenAI-compatible endpoint
+
+如果使用 OpenAI-compatible 的 SGLang 内网接口，建议用环境变量配置，不要把 Key 写入代码：
+
+```bash
+export VIDEOSHOP_LLM_BASE_URL="http://113.128.201.101:8001/v1"
+export VIDEOSHOP_LLM_MODEL="Qwen3.8-27B"
+export VIDEOSHOP_LLM_API_KEY="<your-api-key>"
+python examples/qwen_sglang_agent.py
+```
+
+### 生成 LLM tool-calling 轨迹
+
+配置 OpenAI-compatible 接口后，可以保存真实 LLM tool-calling 轨迹：
+
+```bash
+python scripts/generate_llm_trajectories.py --episodes-per-scenario 1 --max-scenarios 10
+```
+
+synthetic LLM 轨迹也使用同一套 split 参数：
+
+```bash
+python scripts/generate_llm_trajectories.py \
+  --split synthetic \
+  --episodes-per-scenario 1 \
+  --synthetic-scenarios 50 \
+  --synthetic-categories 12 \
+  --synthetic-products-per-category 80 \
+  --synthetic-candidate-pool-size 32 \
+  --out outputs/llm_trajectories/qwen_synthetic_tool_calling.jsonl \
+  --report outputs/llm_trajectories/qwen_synthetic_tool_calling_summary.json
+```
+
+输出文件：
+
+```text
+outputs/llm_trajectories/qwen_tool_calling.jsonl
+outputs/llm_trajectories/qwen_tool_calling_summary.json
+```
+
+每个 step 会记录 observation、模型 tool requests、final action、显式 `reasoning_summary`、实际执行的 tool results、reward、user response、state update、终止标记和 constraint violations。`reasoning_summary` 是要求模型输出的可审计推理摘要，不是隐藏 chain-of-thought。

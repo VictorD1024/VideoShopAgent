@@ -230,3 +230,88 @@ VideoShopAgent/
 ## License
 
 This project is released under the Apache-2.0 License. External datasets should be used according to their own licenses and terms.
+
+## Toy Benchmark
+
+Run the fixed VideoShopEnv toy benchmark split:
+
+```bash
+python scripts/run_benchmark.py --policy rule_based --episodes-per-scenario 1 --seed 42
+```
+
+Outputs are written to:
+
+```text
+outputs/benchmarks/toy_episodes.jsonl
+outputs/benchmarks/toy_summary.json
+```
+
+The toy split contains 10 fixed scenarios covering valid coupons, fake coupon traps, high-risk products, substitutes, ad fatigue, category mismatch, expired coupons, stock pressure, grounded explanations, and low inventory guards.
+
+For larger cold-start data generation, use the synthetic commerce split:
+
+```bash
+python scripts/run_benchmark.py \
+  --split synthetic \
+  --policy rule_based \
+  --synthetic-categories 12 \
+  --synthetic-products-per-category 80 \
+  --synthetic-scenarios 50 \
+  --synthetic-candidate-pool-size 32 \
+  --out outputs/benchmarks/synthetic_episodes.jsonl \
+  --report outputs/benchmarks/synthetic_summary.json
+```
+
+The synthetic split creates a large catalog, coupon inventory, stock pressure, user profiles, videos, and typed scenarios such as valid coupon, fake coupon trap, high-risk explanation, substitute, fatigue delay, low inventory guard, clearance pressure, and category mismatch trap. Each scenario exposes a bounded candidate pool so prompts stay tractable while the underlying catalog can scale.
+
+## Function Calling Agent
+
+VideoShopEnv keeps `AgentStep` as the internal protocol, and adds provider-style function/tool calling adapters under `videoshop.agents`. A minimal scripted example is available at:
+
+```bash
+python examples/function_calling_agent.py
+```
+
+The tool schema includes `retrieve_candidates`, `rank_products`, `get_coupon`, `find_substitute`, `explain_recommendation`, and `submit_final_action`. Provider tool calls are normalized into `AgentStep` before being passed to `env.step_agent(...)`.
+
+### SGLang / OpenAI-compatible endpoint
+
+For an OpenAI-compatible SGLang endpoint, configure credentials with environment variables instead of hard-coding them:
+
+```bash
+export VIDEOSHOP_LLM_BASE_URL="http://113.128.201.101:8001/v1"
+export VIDEOSHOP_LLM_MODEL="Qwen3.8-27B"
+export VIDEOSHOP_LLM_API_KEY="<your-api-key>"
+python examples/qwen_sglang_agent.py
+```
+
+### Generate LLM tool-calling trajectories
+
+After configuring the OpenAI-compatible endpoint, save LLM tool-calling traces with:
+
+```bash
+python scripts/generate_llm_trajectories.py --episodes-per-scenario 1 --max-scenarios 10
+```
+
+Synthetic LLM trajectory generation uses the same split controls:
+
+```bash
+python scripts/generate_llm_trajectories.py \
+  --split synthetic \
+  --episodes-per-scenario 1 \
+  --synthetic-scenarios 50 \
+  --synthetic-categories 12 \
+  --synthetic-products-per-category 80 \
+  --synthetic-candidate-pool-size 32 \
+  --out outputs/llm_trajectories/qwen_synthetic_tool_calling.jsonl \
+  --report outputs/llm_trajectories/qwen_synthetic_tool_calling_summary.json
+```
+
+Outputs are written to:
+
+```text
+outputs/llm_trajectories/qwen_tool_calling.jsonl
+outputs/llm_trajectories/qwen_tool_calling_summary.json
+```
+
+Each step records the observation, model tool requests, final action, explicit `reasoning_summary`, executed tool results, reward, user response, state update, termination flags, and constraint violations. `reasoning_summary` is an audit artifact requested from the model, not hidden chain-of-thought.
