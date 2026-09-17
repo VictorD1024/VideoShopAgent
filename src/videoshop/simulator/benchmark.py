@@ -20,8 +20,15 @@ def build_policy(name: str, seed: int):
     raise ValueError(f"Unsupported policy: {name}")
 
 
-def run_scenario_episode(env: VideoShopEnv, policy, scenario_id: str, episode_id: str) -> dict:
-    state = env.reset(scenario_id=scenario_id)
+def run_scenario_episode(
+    env: VideoShopEnv,
+    policy,
+    scenario_id: str,
+    episode_id: str,
+    *,
+    seed: int | None = None,
+) -> dict:
+    state = env.reset(scenario_id=scenario_id, seed=seed)
     steps = []
     total_reward = 0.0
     done = False
@@ -34,7 +41,7 @@ def run_scenario_episode(env: VideoShopEnv, policy, scenario_id: str, episode_id
         next_state, response, reward, done, update = env.step(action)
         total_reward += reward
         if response.purchased:
-            outcome = "purchase"
+            outcome = "returned_or_refunded" if response.returned_or_refunded else "purchase"
 
         steps.append(
             {
@@ -66,7 +73,8 @@ def summarize_benchmark(episodes: list[dict], policy_name: str) -> dict:
     per_episode = [evaluate_episode(episode) for episode in episodes]
     total_steps = sum(metrics.get("steps", 0) for metrics in per_episode)
     total_reward = sum(metrics.get("total_reward", 0.0) for metrics in per_episode)
-    purchases = sum(metrics.get("outcome") == "purchase" for metrics in per_episode)
+    gross_purchases = sum(bool(metrics.get("gross_purchase")) for metrics in per_episode)
+    net_purchases = sum(bool(metrics.get("net_purchase")) for metrics in per_episode)
     violations = sum(metrics.get("constraint_violations", 0) for metrics in per_episode)
 
     return {
@@ -75,7 +83,9 @@ def summarize_benchmark(episodes: list[dict], policy_name: str) -> dict:
         "scenarios": len({episode["scenario_id"] for episode in episodes}),
         "avg_reward": total_reward / len(episodes) if episodes else 0.0,
         "avg_steps": total_steps / len(episodes) if episodes else 0.0,
-        "purchase_rate": purchases / len(episodes) if episodes else 0.0,
+        "purchase_rate": net_purchases / len(episodes) if episodes else 0.0,
+        "gross_purchase_rate": gross_purchases / len(episodes) if episodes else 0.0,
+        "net_purchase_rate": net_purchases / len(episodes) if episodes else 0.0,
         "constraint_violations": violations,
         "fake_coupon_count": sum(metrics.get("fake_coupon_count", 0) for metrics in per_episode),
         "unsupported_explanation_count": sum(metrics.get("unsupported_explanation_count", 0) for metrics in per_episode),
@@ -103,10 +113,21 @@ def run_benchmark(
     policy = build_policy(policy_name, seed)
     episodes = []
 
+    episode_number = 0
     for scenario in scenarios:
         for index in range(episodes_per_scenario):
             episode_id = f"{scenario.scenario_id}:{index + 1:03d}"
-            episodes.append(run_scenario_episode(env, policy, scenario.scenario_id, episode_id))
+            episode_seed = seed + episode_number
+            episode_number += 1
+            episodes.append(
+                run_scenario_episode(
+                    env,
+                    policy,
+                    scenario.scenario_id,
+                    episode_id,
+                    seed=episode_seed,
+                )
+            )
 
     summary = summarize_benchmark(episodes, policy_name=policy_name)
     summary["split"] = split

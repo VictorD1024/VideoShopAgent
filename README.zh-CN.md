@@ -2,9 +2,9 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-VideoShopAgent 是一个面向短视频电商场景的 Agent 环境，用于生成和评测工具调用轨迹。核心环境 `VideoShopEnv` 模拟购物 Agent 在内容流中如何决策：何时介入、推荐什么商品、是否使用优惠券或替代品，以及如何基于证据解释推荐。
+VideoShopAgent 是一个面向短视频内容电商的开源仿真环境与 Agent 训练评测基准，用于研究智能策略如何联合优化内容分发、商品曝光、促销干预和长期用户价值。
 
-本项目聚焦在搜索、推荐、广告和多模态理解之上的 Agentic decision layer。它可以生成结构化轨迹，用于 SFT、DPO、RL rollout 和离线 Agent 评测。
+核心环境 `VideoShopEnv` 模拟 Agent 在用户、商品、库存、促销和风险约束下，如何决定何时以及如何介入内容流。本项目聚焦在搜索、推荐、广告和多模态理解之上的 Agentic decision layer，并生成可用于 SFT、DPO、RL rollout 和离线 Agent 评测的结构化轨迹。
 
 ![VideoShopAgent 架构图](videoshopagent-architecture.png)
 

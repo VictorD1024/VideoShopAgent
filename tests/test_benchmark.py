@@ -32,6 +32,8 @@ def test_run_benchmark_returns_episode_rows_and_summary():
     assert summary["episodes"] == 10
     assert summary["scenarios"] == 10
     assert "avg_reward" in summary
+    assert "gross_purchase_rate" in summary
+    assert "net_purchase_rate" in summary
     assert "constraint_violations" in summary
     assert all("scenario_id" in episode for episode in episodes)
 

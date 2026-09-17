@@ -2,9 +2,17 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 from typing import Any, Sequence
+
+
+class LLMHTTPError(RuntimeError):
+    def __init__(self, status_code: int, body: str) -> None:
+        self.status_code = status_code
+        self.body = body
+        super().__init__(f"LLM HTTP {status_code}: {body}")
 
 
 class OpenAICompatibleToolClient:
@@ -30,6 +38,7 @@ class OpenAICompatibleToolClient:
         self.temperature = temperature
         self.timeout = timeout
         self.max_tokens = max_tokens
+        self.last_response_metadata: dict[str, Any] = {}
         if not self.base_url:
             raise ValueError("base_url is required. Set VIDEOSHOP_LLM_BASE_URL or pass base_url=...")
 
@@ -43,10 +52,20 @@ class OpenAICompatibleToolClient:
         }
         if self.max_tokens is not None:
             payload["max_tokens"] = self.max_tokens
+        started = time.perf_counter()
         response = self._post_json("/chat/completions", payload)
+        latency_ms = round((time.perf_counter() - started) * 1000, 3)
         choices = response.get("choices", [])
         if not choices:
             raise RuntimeError(f"LLM response has no choices: {response}")
+        self.last_response_metadata = {
+            "response_id": response.get("id"),
+            "model": response.get("model", self.model),
+            "created": response.get("created"),
+            "finish_reason": choices[0].get("finish_reason"),
+            "usage": response.get("usage", {}),
+            "latency_ms": latency_ms,
+        }
         message = choices[0].get("message", {})
         tool_calls = message.get("tool_calls") or []
         if tool_calls:
@@ -74,7 +93,7 @@ class OpenAICompatibleToolClient:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"LLM HTTP {exc.code}: {body}") from exc
+            raise LLMHTTPError(exc.code, body) from exc
 
 
 def _tool_calls_from_plain_content(content: str) -> list[dict[str, Any]]:

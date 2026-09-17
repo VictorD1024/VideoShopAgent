@@ -1,0 +1,43 @@
+{
+  "model": "Qwen3.8-27B",
+  "episodes": 50,
+  "successful_episodes": 46,
+  "failed_episodes": 4,
+  "scenarios": 50,
+  "avg_reward": 5.934782608695652,
+  "avg_steps": 7.3478260869565215,
+  "purchase_rate": 0.17391304347826086,
+  "constraint_violations": 5,
+  "fake_coupon_count": 0,
+  "unsupported_explanation_count": 0,
+  "category_mismatch_count": 1,
+  "return_or_refund_count": 3,
+  "reasoning_summary_steps": 329,
+  "reasoning_summary_coverage": 0.9733727810650887,
+  "split": "synthetic",
+  "scenario_type_counts": {
+    "coupon_valid": 7,
+    "fake_coupon_trap": 7,
+    "high_risk_explanation": 6,
+    "substitute_needed": 6,
+    "fatigue_delay": 6,
+    "low_inventory_guard": 6,
+    "stock_pressure_clearance": 6,
+    "category_mismatch_trap": 6
+  },
+  "synthetic_config": {
+    "seed": 42,
+    "category_count": 12,
+    "products_per_category": 80,
+    "users": 40,
+    "videos_per_category": 8,
+    "scenario_count": 50,
+    "candidate_pool_size": 32,
+    "coupon_coverage": 0.22,
+    "clearance_rate": 0.12,
+    "high_margin_rate": 0.18,
+    "catalog_size": 960,
+    "video_count": 96,
+    "observation_candidate_limit": 12
+  }
+}

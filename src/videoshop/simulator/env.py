@@ -27,6 +27,14 @@ from videoshop.simulator.tools import product_match_score
 from videoshop.simulator.user_simulator import UserSimulator
 
 DEFAULT_TASK = "Assist a short-video shopping session with grounded, low-risk recommendations."
+ACTION_TYPES = {
+    "delay_recommendation",
+    "show_product_card",
+    "show_coupon",
+    "switch_to_substitute",
+    "show_explanation",
+}
+PRODUCT_ACTIONS = ACTION_TYPES - {"delay_recommendation"}
 
 
 class VideoShopEnv:
@@ -111,6 +119,9 @@ class VideoShopEnv:
             raise RuntimeError("Call reset_agent() before step_agent().")
 
         action, tool_results = self._normalize_agent_step(step)
+        action_errors = self._action_shape_errors(action)
+        if action_errors:
+            raise ValueError("Invalid agent action: " + "; ".join(action_errors))
         violations = self.tool_runtime.validate_action_evidence(action, tool_results)
         if isinstance(step, AgentStep):
             violations.extend(step.metadata.get("agent_warnings", []))
@@ -185,6 +196,18 @@ class VideoShopEnv:
             evidence=evidence,
         )
         return action, tool_results
+
+    def _action_shape_errors(self, action: AgentAction) -> list[str]:
+        errors: list[str] = []
+        if action.action_type not in ACTION_TYPES:
+            errors.append(f"unknown action_type: {action.action_type}")
+        if action.action_type == "delay_recommendation" and action.product_id is not None:
+            errors.append("delay_recommendation requires product_id=null")
+        if action.action_type in PRODUCT_ACTIONS and not action.product_id:
+            errors.append(f"{action.action_type} requires a product_id")
+        if action.product_id and self.find_product(action.product_id) is None:
+            errors.append(f"unknown product_id: {action.product_id}")
+        return errors
 
 
 def _evidence_from_tool_results(final: FinalAction, tool_results: list[ToolCallResult]) -> dict[str, Any]:

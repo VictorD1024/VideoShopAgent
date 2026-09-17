@@ -1,3 +1,5 @@
+import pytest
+
 from videoshop.data.mock import build_mock_states, build_mock_videos
 from videoshop.simulator.env import VideoShopEnv
 from videoshop.simulator.metrics import evaluate_episode
@@ -56,6 +58,16 @@ def test_step_agent_splits_truncated_from_terminated():
     assert truncated is True
 
 
+def test_step_agent_rejects_product_action_without_product_before_state_transition():
+    env = VideoShopEnv(build_mock_states(), build_mock_videos(), max_steps=2, seed=42)
+    env.reset_agent(seed=42)
+
+    with pytest.raises(ValueError, match="requires a product_id"):
+        env.step_agent(AgentStep(final_action=FinalAction("show_product_card", product_id=None, reason="Invalid.")))
+
+    assert env.state.session_state.step == 0
+
+
 def test_video_shop_scenario_can_seed_a_fixed_episode():
     states = build_mock_states()
     videos = build_mock_videos()
@@ -87,3 +99,31 @@ def test_evaluate_episode_reports_constraint_counts():
     assert metrics["fake_coupon_count"] == 1
     assert metrics["category_mismatch_count"] == 1
     assert metrics["constraint_violations"] == 2
+
+
+def test_evaluate_episode_separates_gross_and_net_purchase():
+    episode = {
+        "episode_id": "E000002",
+        "total_reward": -4.0,
+        "outcome": "returned_or_refunded",
+        "steps": [
+            {
+                "action": {"action_type": "show_product_card", "evidence": {}},
+                "user_response": {
+                    "clicked": True,
+                    "added_to_cart": True,
+                    "purchased": True,
+                    "returned_or_refunded": True,
+                    "interrupted": False,
+                    "irrelevant_recommendation": False,
+                },
+            }
+        ],
+    }
+
+    metrics = evaluate_episode(episode)
+
+    assert metrics["gross_purchase"] is True
+    assert metrics["net_purchase"] is False
+    assert metrics["gross_purchase_steps"] == 1
+    assert metrics["net_purchase_steps"] == 0

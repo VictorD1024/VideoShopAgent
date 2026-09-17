@@ -30,6 +30,14 @@ def main() -> None:
                         "action_type": "show_coupon",
                         "product_id": product_id,
                         "reason": "Coupon availability was checked through the tool.",
+                        "reasoning_summary": {
+                            "observation_facts": [f"{product_id} is visible"],
+                            "evidence_used": ["get_coupon verified coupon availability"],
+                            "candidate_comparison": [],
+                            "rejected_options": [],
+                            "decision_rule": "Show a coupon only after successful verification.",
+                            "confidence": 0.95,
+                        },
                     },
                 }
             ],

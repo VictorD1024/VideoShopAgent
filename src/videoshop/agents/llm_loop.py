@@ -5,9 +5,10 @@ from collections.abc import Callable, Sequence
 from dataclasses import asdict
 from typing import Any, Protocol
 
-from videoshop.agents.adapters import ToolCallParseError, agent_step_from_tool_calls
+from videoshop.agents.adapters import ToolCallParseError, agent_step_from_tool_calls, normalize_tool_call
 from videoshop.agents.prompt import build_system_prompt, few_shot_messages, observation_to_user_message
 from videoshop.agents.tool_specs import FINAL_ACTION_TOOL, video_shop_tool_specs
+from videoshop.agents.validation import final_action_errors, request_state_errors
 from videoshop.simulator.schemas import AgentStep, EnvState, FinalAction, Observation, ToolCallRequest, ToolCallResult
 from videoshop.simulator.tool_runtime import ToolRuntime
 
@@ -45,33 +46,114 @@ class FunctionCallingAgent:
         messages.append(observation_to_user_message(observation))
 
         collected_requests: list[ToolCallRequest] = []
+        collected_results: list[ToolCallResult] = []
+        tool_call_trace: list[dict[str, Any]] = []
 
         repair_warnings: list[str] = []
         for round_index in range(self.max_tool_rounds):
             raw_calls = list(self._complete(messages))
+            trace_entry: dict[str, Any] = {
+                "round": round_index + 1,
+                "raw_calls": [_serialize_raw_call(call) for call in raw_calls],
+            }
+            provider_metadata = getattr(self.client, "last_response_metadata", None)
+            if provider_metadata:
+                trace_entry["provider_metadata"] = dict(provider_metadata)
             try:
                 step = agent_step_from_tool_calls(raw_calls)
             except ToolCallParseError as exc:
-                return _fallback_step(collected_requests, "tool_call_parse_error", str(exc))
+                warning = "tool_call_parse_error"
+                repair_warnings.append(warning)
+                trace_entry.update({"status": "repair", "error": str(exc)})
+                tool_call_trace.append(trace_entry)
+                if round_index < self.max_tool_rounds - 1:
+                    messages.append(_repair_message(warning, str(exc)))
+                    continue
+                return _fallback_step(
+                    collected_requests,
+                    warning,
+                    str(exc),
+                    repair_warnings=repair_warnings,
+                    tool_call_trace=tool_call_trace,
+                )
 
+            request_errors = [
+                error
+                for request in step.tool_requests
+                for error in request_state_errors(request, state)
+            ]
+            if request_errors:
+                warning = "invalid_tool_arguments"
+                detail = "; ".join(request_errors)
+                repair_warnings.append(warning)
+                trace_entry.update({"status": "repair", "error": detail})
+                tool_call_trace.append(trace_entry)
+                if round_index < self.max_tool_rounds - 1:
+                    messages.append(_repair_message(warning, detail))
+                    continue
+                return _fallback_step(
+                    collected_requests,
+                    warning,
+                    detail,
+                    repair_warnings=repair_warnings,
+                    tool_call_trace=tool_call_trace,
+                )
+
+            results = self.runtime.execute_many(state, step.tool_requests)
             collected_requests.extend(step.tool_requests)
+            collected_results.extend(results)
+            trace_entry["tool_results"] = [asdict(result) for result in results]
+
+            non_final_raw_calls = _non_final_raw_calls(raw_calls)
+            if non_final_raw_calls:
+                messages.append({"role": "assistant", "tool_calls": _tool_calls_for_messages(non_final_raw_calls)})
+                messages.extend(_tool_result_messages(results, non_final_raw_calls))
 
             if step.final_action is not None:
-                metadata = {"agent_repair_warnings": repair_warnings} if repair_warnings else {}
+                errors = final_action_errors(step.final_action, state, collected_results)
+                if errors:
+                    warning = "invalid_final_action"
+                    detail = "; ".join(errors)
+                    repair_warnings.append(warning)
+                    trace_entry.update({"status": "repair", "error": detail})
+                    tool_call_trace.append(trace_entry)
+                    if round_index < self.max_tool_rounds - 1:
+                        messages.append(_repair_message(warning, detail))
+                        continue
+                    return _fallback_step(
+                        collected_requests,
+                        warning,
+                        detail,
+                        repair_warnings=repair_warnings,
+                        tool_call_trace=tool_call_trace,
+                    )
+
+                trace_entry["status"] = "accepted"
+                tool_call_trace.append(trace_entry)
+                metadata: dict[str, Any] = {"tool_call_trace": tool_call_trace}
+                if repair_warnings:
+                    metadata["agent_repair_warnings"] = repair_warnings
                 return AgentStep(tool_requests=collected_requests, final_action=step.final_action, metadata=metadata)
 
             if not step.tool_requests:
                 repair_warnings.append("missing_final_action")
+                trace_entry.update({"status": "repair", "error": "Model returned no tool calls."})
+                tool_call_trace.append(trace_entry)
                 if round_index < self.max_tool_rounds - 1:
                     messages.append(_final_action_repair_message())
                     continue
                 break
 
-            results = self.runtime.execute_many(state, step.tool_requests)
-            messages.append({"role": "assistant", "tool_calls": _tool_calls_for_messages(raw_calls)})
-            messages.extend(_tool_result_messages(results, raw_calls))
+            trace_entry["status"] = "tools_executed"
+            tool_call_trace.append(trace_entry)
 
-        return _fallback_step(collected_requests, "missing_final_action", "Model did not call submit_final_action.")
+        return _fallback_step(
+            collected_requests,
+            "missing_final_action",
+            "Model did not call submit_final_action.",
+            repair_warnings=repair_warnings,
+            tool_call_trace=tool_call_trace,
+        )
 
     def _complete(self, messages: list[dict[str, Any]]) -> Sequence[Any]:
         if hasattr(self.client, "complete"):
@@ -79,7 +161,21 @@ class FunctionCallingAgent:
         return self.client(messages, self.tools)  # type: ignore[misc]
 
 
-def _fallback_step(tool_requests: list[ToolCallRequest], warning: str, detail: str) -> AgentStep:
+def _fallback_step(
+    tool_requests: list[ToolCallRequest],
+    warning: str,
+    detail: str,
+    *,
+    repair_warnings: list[str] | None = None,
+    tool_call_trace: list[dict[str, Any]] | None = None,
+) -> AgentStep:
+    metadata: dict[str, Any] = {
+        "agent_warnings": [warning],
+        "warning_detail": detail,
+        "tool_call_trace": tool_call_trace or [],
+    }
+    if repair_warnings:
+        metadata["agent_repair_warnings"] = repair_warnings
     return AgentStep(
         tool_requests=tool_requests,
         final_action=FinalAction(
@@ -95,7 +191,7 @@ def _fallback_step(tool_requests: list[ToolCallRequest], warning: str, detail: s
                 "confidence": 1.0,
             },
         ),
-        metadata={"agent_warnings": [warning], "warning_detail": detail},
+        metadata=metadata,
     )
 
 
@@ -111,8 +207,23 @@ def _final_action_repair_message() -> dict[str, str]:
     }
 
 
+def _repair_message(warning: str, detail: str) -> dict[str, str]:
+    return {
+        "role": "user",
+        "content": (
+            f"Your previous response was invalid ({warning}): {detail}. "
+            "Correct the invalid fields and continue using valid JSON tool calls. "
+            "End by calling submit_final_action exactly once with a concise reasoning_summary object."
+        ),
+    }
+
+
 def _tool_calls_for_messages(raw_calls: Sequence[Any]) -> list[Any]:
     return list(raw_calls)
+
+
+def _non_final_raw_calls(raw_calls: Sequence[Any]) -> list[Any]:
+    return [call for call in raw_calls if normalize_tool_call(call)[0] != FINAL_ACTION_TOOL]
 
 
 def _tool_result_messages(results: list[ToolCallResult], raw_calls: Sequence[Any]) -> list[dict[str, str]]:
@@ -140,6 +251,16 @@ def _tool_call_id(raw_call: Any) -> str | None:
     return None
 
 
+def _serialize_raw_call(raw_call: Any) -> Any:
+    if isinstance(raw_call, dict):
+        return raw_call
+    if hasattr(raw_call, "model_dump"):
+        return raw_call.model_dump()
+    if hasattr(raw_call, "dict"):
+        return raw_call.dict()
+    return repr(raw_call)
+
+
 class ScriptedToolCallingClient:
     """Tiny test/demo client that returns one scripted batch of tool calls per turn."""
 
@@ -150,7 +271,22 @@ class ScriptedToolCallingClient:
     def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> Sequence[Any]:
         del messages, tools
         if self.calls >= len(self.turns):
-            return [{"name": FINAL_ACTION_TOOL, "arguments": {"action_type": "delay_recommendation", "product_id": None, "reason": "No scripted action remains."}}]
+            return [
+                {
+                    "name": FINAL_ACTION_TOOL,
+                    "arguments": {
+                        "action_type": "delay_recommendation",
+                        "product_id": None,
+                        "reason": "No scripted action remains.",
+                        "reasoning_summary": {
+                            "observation_facts": [],
+                            "evidence_used": [],
+                            "decision_rule": "Delay when no scripted action remains.",
+                            "confidence": 1.0,
+                        },
+                    },
+                }
+            ]
         turn = self.turns[self.calls]
         self.calls += 1
         return turn

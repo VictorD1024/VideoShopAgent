@@ -2,9 +2,9 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-VideoShopAgent is a short-video commerce agent environment for generating and evaluating tool-use trajectories. Its core environment, `VideoShopEnv`, models how a shopping agent decides when to intervene in a content feed, what product to recommend, whether to use coupons or substitutes, and how to ground recommendations with evidence.
+VideoShopAgent is an open-source short-video commerce simulator and benchmark for training agents to optimize content distribution, product exposure, commercial interventions, and long-term user value.
 
-The project focuses on the agentic decision layer above retrieval, ranking, ads, and multimodal understanding. It produces structured trajectories for SFT, DPO, RL rollouts, and offline agent evaluation.
+Its core environment, `VideoShopEnv`, models how an agent decides when and how to intervene in a content feed under user, product, inventory, promotion, and risk constraints. The project focuses on the agentic decision layer above retrieval, ranking, ads, and multimodal understanding, and produces structured trajectories for SFT, DPO, RL rollouts, and offline agent evaluation.
 
 ![VideoShopAgent architecture](videoshopagent-architecture.png)
 
@@ -303,9 +303,14 @@ python scripts/generate_llm_trajectories.py \
   --synthetic-categories 12 \
   --synthetic-products-per-category 80 \
   --synthetic-candidate-pool-size 32 \
+  --episode-retries 2 \
+  --max-tool-rounds 5 \
+  --max-tokens 2048 \
   --out outputs/llm_trajectories/qwen_synthetic_tool_calling.jsonl \
   --report outputs/llm_trajectories/qwen_synthetic_tool_calling_summary.json
 ```
+
+Use `--resume` to append only missing episode IDs after an interrupted run. Each episode receives an independent deterministic seed, and transient network, HTTP 429, and HTTP 5xx failures are retried with the same seed.
 
 Outputs are written to:
 
@@ -314,4 +319,24 @@ outputs/llm_trajectories/qwen_tool_calling.jsonl
 outputs/llm_trajectories/qwen_tool_calling_summary.json
 ```
 
-Each step records the observation, model tool requests, final action, explicit `reasoning_summary`, executed tool results, reward, user response, state update, termination flags, and constraint violations. `reasoning_summary` is an audit artifact requested from the model, not hidden chain-of-thought.
+Each step records the observation, validated model tool requests, final action, explicit `reasoning_summary`, per-round raw tool-call trace and provider metadata, executed tool results, reward, user response, state update, termination flags, and constraint violations. Invalid protocol output is repaired before the environment state advances. `reasoning_summary` is an audit artifact requested from the model, not hidden chain-of-thought. Reports separate gross purchases from net purchases after returns; `purchase_rate` is the net purchase rate.
+
+### Convert strict Gold trajectories to SFT data
+
+Filter failed, repaired, malformed, or ungrounded episodes and convert the remaining trajectories with:
+
+```bash
+python scripts/convert_gold_trajectories.py \
+  --input outputs/llm_trajectories/qwen_synthetic_tool_calling_v2.jsonl \
+  --out-dir outputs/datasets/qwen_synthetic_gold \
+  --expected-gold 12
+```
+
+The converter emits the selected source episodes, reconstructed OpenAI-compatible tool-calling messages, a flattened action-JSON variant, and a rejection report. The original trajectory stores flattened tool requests rather than raw provider turn boundaries, so reconstructed tool sequences are marked in sample metadata.
+
+```text
+outputs/datasets/qwen_synthetic_gold/gold_episodes.jsonl
+outputs/datasets/qwen_synthetic_gold/openai_tool_sft.jsonl
+outputs/datasets/qwen_synthetic_gold/action_sft.jsonl
+outputs/datasets/qwen_synthetic_gold/conversion_report.json
+```

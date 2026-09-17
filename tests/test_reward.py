@@ -55,3 +55,19 @@ def test_valid_coupon_reward_uses_tool_evidence():
     response = UserResponse(clicked=True)
 
     assert compute_reward(response, action, product) == 3.0
+
+
+def test_refunded_purchase_does_not_receive_purchase_proxy_reward():
+    product = Product(
+        product_id="P001",
+        title="Desk Organizer",
+        category="home organization",
+        price=24.99,
+        rating=4.6,
+        inventory=100,
+        review_risk=0.1,
+    )
+    action = AgentAction(action_type="show_product_card", product_id="P001")
+    response = UserResponse(clicked=True, added_to_cart=True, purchased=True, returned_or_refunded=True)
+
+    assert compute_reward(response, action, product) == -4.0

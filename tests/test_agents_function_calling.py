@@ -8,6 +8,15 @@ from videoshop.data.mock import build_mock_states, build_mock_videos
 from videoshop.simulator.env import VideoShopEnv
 
 
+def _reasoning(decision_rule="Use grounded evidence."):
+    return {
+        "observation_facts": ["candidate is visible"],
+        "evidence_used": [],
+        "decision_rule": decision_rule,
+        "confidence": 0.9,
+    }
+
+
 def test_tool_specs_include_business_tools_and_final_action():
     specs = video_shop_tool_specs()
     names = {spec["function"]["name"] for spec in specs}
@@ -16,6 +25,8 @@ def test_tool_specs_include_business_tools_and_final_action():
     assert "find_substitute" in names
     assert "explain_recommendation" in names
     assert FINAL_ACTION_TOOL in names
+    final_spec = next(spec for spec in specs if spec["function"]["name"] == FINAL_ACTION_TOOL)
+    assert "reasoning_summary" in final_spec["function"]["parameters"]["required"]
 
 
 def test_openai_style_tool_calls_parse_to_agent_step():
@@ -95,7 +106,17 @@ def test_function_calling_agent_runs_tool_round_then_final_action():
     client = ScriptedToolCallingClient(
         [
             [{"name": "get_coupon", "arguments": {"product_id": product_id}}],
-            [{"name": FINAL_ACTION_TOOL, "arguments": {"action_type": "show_coupon", "product_id": product_id, "reason": "Coupon was checked through the tool."}}],
+            [
+                {
+                    "name": FINAL_ACTION_TOOL,
+                    "arguments": {
+                        "action_type": "show_coupon",
+                        "product_id": product_id,
+                        "reason": "Coupon was checked through the tool.",
+                        "reasoning_summary": _reasoning("Show a verified coupon."),
+                    },
+                }
+            ],
         ]
     )
 
@@ -110,6 +131,7 @@ def test_function_calling_agent_runs_tool_round_then_final_action():
     assert terminated is False
     assert truncated is False
     assert step_info["violations"] == []
+    assert [round_["status"] for round_ in step.metadata["tool_call_trace"]] == ["tools_executed", "accepted"]
 
 
 def test_openai_compatible_client_posts_chat_completions(monkeypatch):
@@ -124,8 +146,12 @@ def test_openai_compatible_client_posts_chat_completions(monkeypatch):
 
         def read(self):
             payload = {
+                "id": "chatcmpl-test",
+                "model": "Qwen3.8-27B",
+                "usage": {"prompt_tokens": 10, "completion_tokens": 3},
                 "choices": [
                     {
+                        "finish_reason": "tool_calls",
                         "message": {
                             "tool_calls": [
                                 {
@@ -155,6 +181,9 @@ def test_openai_compatible_client_posts_chat_completions(monkeypatch):
     assert captured["headers"]["Authorization"] == "Bearer test-key"
     assert '"model": "Qwen3.8-27B"' in captured["payload"]
     assert calls[0]["function"]["name"] == "get_coupon"
+    assert client.last_response_metadata["finish_reason"] == "tool_calls"
+    assert client.last_response_metadata["usage"]["completion_tokens"] == 3
+    assert client.last_response_metadata["latency_ms"] >= 0
 
 
 def test_final_action_string_null_normalizes_to_none():
@@ -200,7 +229,12 @@ def test_function_calling_agent_repairs_missing_final_action_once():
             [
                 {
                     "name": FINAL_ACTION_TOOL,
-                    "arguments": {"action_type": "delay_recommendation", "product_id": None, "reason": "Repaired final action."},
+                    "arguments": {
+                        "action_type": "delay_recommendation",
+                        "product_id": None,
+                        "reason": "Repaired final action.",
+                        "reasoning_summary": _reasoning("Delay after an empty response."),
+                    },
                 }
             ],
         ]
@@ -212,6 +246,7 @@ def test_function_calling_agent_repairs_missing_final_action_once():
 
     assert step.final_action.action_type == "delay_recommendation"
     assert "agent_repair_warnings" in step.metadata
+    assert "agent_warnings" not in step.metadata
     assert "missing_final_action" not in step_info["violations"]
     assert truncated is True
 
@@ -221,7 +256,7 @@ def test_function_calling_agent_falls_back_on_bad_tool_arguments():
     observation, info = env.reset_agent(seed=42)
     client = ScriptedToolCallingClient([[{"name": "get_coupon", "arguments": "{bad json"}]])
 
-    agent = FunctionCallingAgent(client, include_few_shots=False)
+    agent = FunctionCallingAgent(client, include_few_shots=False, max_tool_rounds=1)
     step = agent.act(observation, info["state"])
     _, _, _, truncated, step_info = env.step_agent(step)
 
@@ -229,3 +264,33 @@ def test_function_calling_agent_falls_back_on_bad_tool_arguments():
     assert "tool_call_parse_error" in step.metadata["agent_warnings"]
     assert "tool_call_parse_error" in step_info["violations"]
     assert truncated is True
+
+
+def test_function_calling_agent_repairs_invalid_rank_arguments_before_env_step():
+    env = VideoShopEnv(build_mock_states(), build_mock_videos(), max_steps=1, seed=42)
+    observation, info = env.reset_agent(seed=42)
+    client = ScriptedToolCallingClient(
+        [
+            [{"name": "rank_products", "arguments": {"candidate_product_ids": '["P001"'}}],
+            [
+                {
+                    "name": FINAL_ACTION_TOOL,
+                    "arguments": {
+                        "action_type": "delay_recommendation",
+                        "product_id": None,
+                        "reason": "Invalid ranking request was discarded.",
+                        "reasoning_summary": _reasoning("Delay after discarding invalid tool arguments."),
+                    },
+                }
+            ],
+        ]
+    )
+
+    step = FunctionCallingAgent(client, include_few_shots=False, max_tool_rounds=2).act(
+        observation, info["state"]
+    )
+
+    assert step.tool_requests == []
+    assert step.final_action.action_type == "delay_recommendation"
+    assert "tool_call_parse_error" in step.metadata["agent_repair_warnings"]
+    assert "agent_warnings" not in step.metadata

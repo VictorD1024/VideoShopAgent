@@ -18,7 +18,7 @@ def run_episode(env: VideoShopEnv, policy, episode_id: str) -> dict:
         next_state, response, reward, done, update = env.step(action)
         total_reward += reward
         if response.purchased:
-            outcome = "purchase"
+            outcome = "returned_or_refunded" if response.returned_or_refunded else "purchase"
 
         steps.append(
             {

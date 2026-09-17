@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from videoshop.agents.tool_specs import FINAL_ACTION_TOOL
+from videoshop.agents.validation import tool_argument_errors
 from videoshop.simulator.schemas import AgentStep, FinalAction, ToolCallRequest
 
 
@@ -30,9 +31,16 @@ def agent_step_from_tool_calls(tool_calls: Iterable[Any]) -> AgentStep:
     requests: list[ToolCallRequest] = []
     final_action: FinalAction | None = None
 
+    final_action_count = 0
     for raw_call in tool_calls:
         name, args = normalize_tool_call(raw_call)
+        errors = tool_argument_errors(name, args)
+        if errors:
+            raise ToolCallParseError("; ".join(errors))
         if name == FINAL_ACTION_TOOL:
+            final_action_count += 1
+            if final_action_count > 1:
+                raise ToolCallParseError("submit_final_action must be called exactly once per response.")
             final_action = _final_action_from_args(args)
         else:
             requests.append(ToolCallRequest(tool=name, args=args))

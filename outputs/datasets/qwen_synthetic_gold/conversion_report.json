@@ -1,0 +1,196 @@
+{
+  "input_episodes": 50,
+  "gold_episodes": 12,
+  "rejected_episodes": 38,
+  "training_samples": 81,
+  "openai_tool_sequence": "reconstructed_from_flattened_tool_requests",
+  "action_type_counts": {
+    "delay_recommendation": 62,
+    "show_coupon": 3,
+    "show_explanation": 1,
+    "show_product_card": 4,
+    "switch_to_substitute": 11
+  },
+  "tool_call_counts": {
+    "explain_recommendation": 1,
+    "find_substitute": 11,
+    "get_coupon": 4,
+    "rank_products": 5
+  },
+  "scenario_type_counts": {
+    "coupon_valid": 2,
+    "fake_coupon_trap": 1,
+    "fatigue_delay": 6,
+    "low_inventory_guard": 3
+  },
+  "returned_or_refunded_steps": 1,
+  "gold_episode_ids": [
+    "llm:synthetic_fatigue_delay_0005:001",
+    "llm:synthetic_fatigue_delay_0013:001",
+    "llm:synthetic_coupon_valid_0017:001",
+    "llm:synthetic_fatigue_delay_0021:001",
+    "llm:synthetic_low_inventory_guard_0022:001",
+    "llm:synthetic_fatigue_delay_0029:001",
+    "llm:synthetic_fake_coupon_trap_0034:001",
+    "llm:synthetic_fatigue_delay_0037:001",
+    "llm:synthetic_low_inventory_guard_0038:001",
+    "llm:synthetic_coupon_valid_0041:001",
+    "llm:synthetic_fatigue_delay_0045:001",
+    "llm:synthetic_low_inventory_guard_0046:001"
+  ],
+  "rejection_reason_counts": {
+    "agent_repair_warning": 27,
+    "constraint_violation": 5,
+    "empty_episode": 4,
+    "episode_failed": 4,
+    "invalid_reasoning_summary": 21,
+    "missing_product_id": 1,
+    "tool_failure": 4
+  },
+  "rejected": {
+    "llm:synthetic_coupon_valid_0001:001": [
+      "agent_repair_warning",
+      "invalid_reasoning_summary"
+    ],
+    "llm:synthetic_fake_coupon_trap_0002:001": [
+      "agent_repair_warning",
+      "invalid_reasoning_summary"
+    ],
+    "llm:synthetic_high_risk_explanation_0003:001": [
+      "invalid_reasoning_summary"
+    ],
+    "llm:synthetic_substitute_needed_0004:001": [
+      "constraint_violation",
+      "empty_episode",
+      "episode_failed"
+    ],
+    "llm:synthetic_low_inventory_guard_0006:001": [
+      "agent_repair_warning"
+    ],
+    "llm:synthetic_stock_pressure_clearance_0007:001": [
+      "agent_repair_warning",
+      "invalid_reasoning_summary"
+    ],
+    "llm:synthetic_category_mismatch_trap_0008:001": [
+      "agent_repair_warning",
+      "tool_failure"
+    ],
+    "llm:synthetic_coupon_valid_0009:001": [
+      "invalid_reasoning_summary",
+      "tool_failure"
+    ],
+    "llm:synthetic_fake_coupon_trap_0010:001": [
+      "agent_repair_warning",
+      "invalid_reasoning_summary"
+    ],
+    "llm:synthetic_high_risk_explanation_0011:001": [
+      "agent_repair_warning"
+    ],
+    "llm:synthetic_substitute_needed_0012:001": [
+      "agent_repair_warning",
+      "invalid_reasoning_summary"
+    ],
+    "llm:synthetic_low_inventory_guard_0014:001": [
+      "agent_repair_warning"
+    ],
+    "llm:synthetic_stock_pressure_clearance_0015:001": [
+      "agent_repair_warning",
+      "invalid_reasoning_summary"
+    ],
+    "llm:synthetic_category_mismatch_trap_0016:001": [
+      "agent_repair_warning"
+    ],
+    "llm:synthetic_fake_coupon_trap_0018:001": [
+      "agent_repair_warning",
+      "invalid_reasoning_summary"
+    ],
+    "llm:synthetic_high_risk_explanation_0019:001": [
+      "agent_repair_warning",
+      "invalid_reasoning_summary"
+    ],
+    "llm:synthetic_substitute_needed_0020:001": [
+      "agent_repair_warning",
+      "tool_failure"
+    ],
+    "llm:synthetic_stock_pressure_clearance_0023:001": [
+      "agent_repair_warning",
+      "invalid_reasoning_summary"
+    ],
+    "llm:synthetic_category_mismatch_trap_0024:001": [
+      "agent_repair_warning",
+      "invalid_reasoning_summary"
+    ],
+    "llm:synthetic_coupon_valid_0025:001": [
+      "agent_repair_warning"
+    ],
+    "llm:synthetic_fake_coupon_trap_0026:001": [
+      "agent_repair_warning"
+    ],
+    "llm:synthetic_high_risk_explanation_0027:001": [
+      "agent_repair_warning"
+    ],
+    "llm:synthetic_substitute_needed_0028:001": [
+      "agent_repair_warning"
+    ],
+    "llm:synthetic_low_inventory_guard_0030:001": [
+      "agent_repair_warning"
+    ],
+    "llm:synthetic_stock_pressure_clearance_0031:001": [
+      "invalid_reasoning_summary"
+    ],
+    "llm:synthetic_category_mismatch_trap_0032:001": [
+      "invalid_reasoning_summary"
+    ],
+    "llm:synthetic_coupon_valid_0033:001": [
+      "agent_repair_warning",
+      "invalid_reasoning_summary"
+    ],
+    "llm:synthetic_high_risk_explanation_0035:001": [
+      "agent_repair_warning",
+      "invalid_reasoning_summary"
+    ],
+    "llm:synthetic_substitute_needed_0036:001": [
+      "agent_repair_warning"
+    ],
+    "llm:synthetic_stock_pressure_clearance_0039:001": [
+      "agent_repair_warning",
+      "invalid_reasoning_summary"
+    ],
+    "llm:synthetic_category_mismatch_trap_0040:001": [
+      "tool_failure"
+    ],
+    "llm:synthetic_fake_coupon_trap_0042:001": [
+      "agent_repair_warning",
+      "constraint_violation",
+      "invalid_reasoning_summary",
+      "missing_product_id"
+    ],
+    "llm:synthetic_high_risk_explanation_0043:001": [
+      "invalid_reasoning_summary"
+    ],
+    "llm:synthetic_substitute_needed_0044:001": [
+      "invalid_reasoning_summary"
+    ],
+    "llm:synthetic_stock_pressure_clearance_0047:001": [
+      "agent_repair_warning",
+      "invalid_reasoning_summary"
+    ],
+    "llm:synthetic_category_mismatch_trap_0048:001": [
+      "constraint_violation",
+      "empty_episode",
+      "episode_failed"
+    ],
+    "llm:synthetic_coupon_valid_0049:001": [
+      "constraint_violation",
+      "empty_episode",
+      "episode_failed"
+    ],
+    "llm:synthetic_fake_coupon_trap_0050:001": [
+      "constraint_violation",
+      "empty_episode",
+      "episode_failed"
+    ]
+  },
+  "input": "outputs/llm_trajectories/qwen_synthetic_tool_calling_v2.jsonl",
+  "output_dir": "outputs/datasets/qwen_synthetic_gold"
+}

@@ -14,6 +14,11 @@ def evaluate_episode(episode: dict) -> dict:
     clicks = sum(bool(step["user_response"].get("clicked")) for step in steps)
     carts = sum(bool(step["user_response"].get("added_to_cart")) for step in steps)
     purchases = sum(bool(step["user_response"].get("purchased")) for step in steps)
+    net_purchases = sum(
+        bool(step["user_response"].get("purchased"))
+        and not bool(step["user_response"].get("returned_or_refunded"))
+        for step in steps
+    )
     interruptions = sum(bool(step["user_response"].get("interrupted")) for step in steps)
     fake_coupon = sum(_fake_coupon(step) for step in steps)
     unsupported_explanation = sum(_unsupported_explanation(step) for step in steps)
@@ -27,6 +32,10 @@ def evaluate_episode(episode: dict) -> dict:
         "ctr": clicks / total_steps,
         "add_to_cart_rate": carts / total_steps,
         "purchase_steps": purchases,
+        "gross_purchase_steps": purchases,
+        "net_purchase_steps": net_purchases,
+        "gross_purchase": purchases > 0,
+        "net_purchase": net_purchases > 0,
         "interruption_rate": interruptions / total_steps,
         "fake_coupon_count": fake_coupon,
         "unsupported_explanation_count": unsupported_explanation,

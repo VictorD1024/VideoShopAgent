@@ -36,7 +36,7 @@ def compute_reward(
         reward += cfg.click_product_card
     if response.added_to_cart:
         reward += cfg.add_to_cart
-    if response.purchased:
+    if response.purchased and not response.returned_or_refunded:
         reward += cfg.purchase_proxy
     if action.action_type == "show_coupon" and product and coupon_available:
         reward += cfg.valid_coupon

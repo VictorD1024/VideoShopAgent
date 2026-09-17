@@ -97,7 +97,7 @@ def video_shop_tool_specs() -> list[dict]:
                         "additionalProperties": False,
                     },
                 },
-                "required": ["action_type", "product_id", "reason"],
+                "required": ["action_type", "product_id", "reason", "reasoning_summary"],
                 "additionalProperties": False,
             },
         ),
