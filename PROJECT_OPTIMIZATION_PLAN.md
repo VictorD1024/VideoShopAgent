@@ -87,41 +87,129 @@ VideoShopAgent 应将 ShopSimulator 视为：
 ## 5. 目标架构
 
 ```text
-Video / Feed World
-  - clip, frame, ASR, OCR, product appearance timeline
-  - feed transition and creator/content context
-            |
-            v
-Latent User World
-  - short-term intent
-  - long-term preference
-  - ad fatigue and trust
-  - cross-session memory
-            |
-            v
-Dynamic Commerce World
-  - catalog and retrieval
-  - inventory and price
-  - coupon budget and expiry
-  - campaign pacing
-  - return and fulfillment risk
-            |
-            v
-Agent Runtime
-  - observe
-  - call tools
-  - validate evidence
-  - choose intervention or silence
-  - optionally hand off to shopping agent
-            |
-            v
+Lower-level Candidate Provider
+  - organic video candidates
+  - seller and affiliate shoppable videos
+  - ad and product-card candidates
+  - base watch, click, purchase, GMV and risk predictions
+                 |
+                 v
+FeedControlEnv
+  - expose a bounded candidate slate
+  - validate eligibility and hard constraints
+  - select or rerank video-product-treatment candidates
+  - control commercial exposure density
+                 |
+                 v
+InterventionEnv
+  - inspect and rank products
+  - validate coupons and inventory
+  - find substitutes and grounded explanations
+  - preserve the current tool-calling environment
+                 |
+                 v
+User, Video and Commerce Worlds
+  - short- and long-term user intent
+  - video timeline, ASR, OCR and product grounding
+  - inventory, price, coupon budget and campaign pacing
+  - fulfillment, return and retention dynamics
+                 |
+                 v
 Evaluator and Data Engine
-  - deterministic replay
-  - step and episode rewards
-  - counterfactual evaluation
+  - reward vector and scalarization
+  - deterministic replay and counterfactual evaluation
   - SFT / DPO / RL export
-  - benchmark report
+  - benchmark and failure reports
 ```
+
+### 5.1 渐进式双层环境
+
+当前 `VideoShopEnv` 不应被立即推翻。现有实现负责固定视频上下文中的商品、优惠券、替代品和解释决策，在 v0.2 中将其定义为兼容层 `InterventionEnv`。新增的 `FeedControlEnv` 位于其上方，负责从底层推荐系统提供的候选中选择下一次曝光。
+
+```text
+CandidateProvider
+  -> FeedControlEnv
+  -> InterventionEnv
+  -> UserResponse
+  -> RewardVector
+  -> next decision
+```
+
+这种拆分保证旧轨迹、tool schema、Gold 转换器和测试可以继续使用，同时让项目逐步获得真正的 Feed 策略控制能力。
+
+### 5.2 核心决策单元
+
+Agent 不负责从百万级视频和商品中执行底层召回，而是在底层推荐系统给出的 20 至 100 个候选上进行策略控制。核心候选定义为：
+
+```python
+@dataclass
+class ExposureCandidate:
+    exposure_id: str
+    video_id: str
+    source_type: str       # organic / seller / affiliate / ad
+    product_id: str | None
+    treatment: str         # none / product_anchor / coupon
+    placement: str         # for_you / search / shop_tab
+    base_scores: dict
+    eligibility: dict
+```
+
+`base_scores` 是底层推荐器产生的不完美预测，而不是 Gold 标签：
+
+```json
+{
+  "expected_watch_time": 12.4,
+  "skip_probability": 0.18,
+  "product_click_probability": 0.09,
+  "purchase_probability": 0.025,
+  "expected_net_gmv": 1.82,
+  "refund_probability": 0.04
+}
+```
+
+v0.2 首先解决 Top-1 曝光决策：
+
+```python
+FeedDecision(
+    action_type="serve_exposure",
+    exposure_id="exp_001",
+    reasoning_summary={...},
+)
+```
+
+完整列表重排 `rank_exposures(ordered_exposure_ids)` 在 Top-1 协议稳定后再加入，避免第一版同时引入过大的动作空间。
+
+### 5.3 公开状态与隐藏世界
+
+场景必须区分 Agent 可见状态与 evaluator 私有状态：
+
+```python
+ScenarioSpec(
+    public_context={},
+    hidden_world_state={},
+    candidate_exposures=[],
+    oracle={},
+    reward_config={},
+)
+```
+
+Agent 不得看到场景类型、预期动作、真实购买意图、真实响应概率或 Gold 候选。普通内容必须作为正式候选存在，因此“不进行商业干预”表现为选择一个普通内容曝光，而不是执行空动作。
+
+### 5.4 Reward 向量
+
+环境先产生可审计的分项奖励，再根据实验策略进行标量化：
+
+```python
+RewardVector(
+    content_value=0.0,
+    commerce_value=0.0,
+    user_value=0.0,
+    ecosystem_value=0.0,
+    risk_cost=0.0,
+)
+```
+
+至少支持 `content_first`、`balanced`、`gmv_first`、`retention_first` 和 `clearance_campaign` 五种权重配置。这样能够区分内容消费、净交易价值、长期用户价值和商业风险，避免单一总分掩盖 reward hacking。
 
 ## 6. 分阶段路线图
 
@@ -147,27 +235,42 @@ Evaluator and Data Engine
 - benchmark 报告能定位到场景、动作、模型和失败类别。
 - 基线结果由一条命令完整复现。
 
-## Phase 1：Benchmark Ready
+## Phase 1：Feed Decision Core 与 Benchmark Ready
 
-目标：把环境从显式规则测试升级为隐藏决策评测。
+目标：在保留当前商品干预能力的基础上，完成推荐系统上层 Top-1 曝光决策闭环，并将显式规则测试升级为隐藏决策评测。
 
 优先级：P0  
-建议周期：2 至 3 周
+建议周期：3 至 4 周
 
 任务：
 
+- 冻结当前 `VideoShopEnv` 行为，将其作为兼容的 `InterventionEnv` 使用，不立即移动或重命名现有模块。
+- 新增 `ExposureCandidate`、`FeedDecision`、`RewardVector` 和 `ScenarioSpec` schema。
+- 实现 `CandidateProvider`，同时生成普通内容、商家带货、达人分销和广告候选。
+- 实现 `FeedControlEnv` 的 Top-1 `serve_exposure` 决策闭环。
+- 将视频与商品的绑定视为候选事实，禁止 Agent 在在线决策中随意篡改。
+- 保留现有商品、优惠券、替代品和解释工具，作为候选检查与干预证据工具。
+- 为旧动作和旧轨迹提供 legacy adapter，使用独立的 v2 trajectory schema。
 - 将场景 objective 改写为自然用户和内容上下文，不出现目标动作名称。
 - 将 `expected_behaviors` 留在 evaluator，不暴露给 Agent。
 - 建立因子化场景生成器，独立采样用户、视频、商品、库存、优惠券、风险和时间。
 - 引入难负例：高评分错类商品、看似可用但已过期的券、低价高风险商品、相似替代品。
 - 建立 train/dev/test 三套冻结 split。
 - 按用户、商品、类目和时间做隔离，防止模板及实体泄漏。
-- 将场景规模扩展到至少 5,000 条训练任务和 1,000 条隐藏评测任务。
-- 加入无可推荐商品、保持沉默才正确的任务。
+- 先建立 100 条 smoke 场景；协议稳定后再扩展到至少 5,000 条训练任务和 1,000 条隐藏评测任务。
+- 保证至少 20% 场景中普通内容候选优于所有商业候选。
 
 验收标准：
 
+- 每一步同时提供普通内容和商业内容候选。
+- Agent 能够选择下一次曝光，但无法修改候选中既定的视频与商品绑定关系。
+- 缺货、违规或不满足硬约束的候选无法曝光。
 - instruction 中不存在 `show_coupon`、`delay_recommendation` 等答案词泄漏。
+- Agent 看不到 Gold、预期动作和用户真实响应参数。
+- Reward 能分别报告内容、商业、用户、生态和风险价值。
+- random、rule-based 和 LLM policy 均可运行在新环境上。
+- 原有测试、工具调用轨迹和转换器保持兼容。
+- 新轨迹具有独立 schema version，并能使用相同 seed 完整重放。
 - rule-based policy 不再接近满分。
 - strong LLM 显著优于 random，但仍保留有解释价值的失败空间。
 - 测试集商品和用户实体不出现在训练集。
@@ -368,8 +471,15 @@ resume_content_feed()
 
 ```text
 src/videoshop/
+  simulator/
+    # 保留当前固定视频商品干预环境及其兼容接口
+  feed/
+    schemas.py
+    candidate_provider.py
+    control_env.py
+    reward.py
+    policies.py
   envs/
-    video_feed_env.py
     shopping_subenv.py
     composite_env.py
   worlds/
@@ -399,14 +509,28 @@ src/videoshop/
     preference.py
     rollout.py
     adapters/
+
+scripts/
+  run_feed_benchmark.py
+
+tests/
+  test_exposure_candidates.py
+  test_feed_control_env.py
+  test_hidden_scenario_state.py
 ```
 
-在近期版本中不必立刻重构成以上目录。只有当 Phase 1 的接口稳定后，再逐步迁移，避免为了目录整洁打断当前实验。
+近期只新增 `feed/`，不立刻重构现有 `simulator/`。只有当 Phase 1 的接口稳定后，再逐步抽取 `worlds/`、`rewards/` 和组合环境，避免为了目录整洁打断当前实验。
 
 ## 11. 建议发布节奏
 
-### v0.2：Benchmark Ready
+### v0.2：Feed Decision Core
 
+- `ExposureCandidate` 和候选 slate。
+- `FeedControlEnv` Top-1 曝光决策。
+- `ScenarioSpec` 公私状态隔离。
+- 普通、带货、达人和广告候选。
+- `RewardVector` 及多种标量化配置。
+- v1 legacy adapter 和 v2 trajectory schema。
 - 隐藏任务目标。
 - 因子化场景生成。
 - 冻结 split。
@@ -445,26 +569,34 @@ src/videoshop/
 
 第一周：
 
-- 新增 `ScenarioSpec`，区分 Agent 可见信息和 evaluator 私有信息。
+- 冻结当前环境接口和 v1 轨迹 schema，记录兼容性基线。
+- 新增 `ExposureCandidate`、`FeedDecision`、`RewardVector` 和 `ScenarioSpec`。
+- 明确 Agent 可见信息与 evaluator 私有信息。
 - 移除 synthetic objective 中的动作提示。
-- 增加隐藏 Gold、场景难度和场景因子字段。
-- 生成按实体隔离的 train/dev/test split。
-- 增加 action distribution 和 per-scenario metrics。
-- 冻结 v0.1 baseline 报告。
+- 实现 schema 校验、序列化和单元测试。
+- 定义 v1 legacy adapter 与 v2 trajectory schema。
+- 增加内容、商业、用户、生态和风险的分项指标。
 
 第二周：
 
-- 实现因子化场景生成器 v1。
-- 增加至少 10 类难负例和 5 类 no-action 场景。
-- 扩展到 5,000 条训练任务和 1,000 条测试任务。
-- 跑 random、rule-based、Qwen 和 DeepSeek 对比。
-- 对失败轨迹自动归因并抽样人工审核。
-- 发布 v0.2 benchmark schema 草案。
+- 实现最小 `CandidateProvider`，生成普通、带货、达人和广告候选。
+- 实现 `FeedControlEnv` Top-1 `serve_exposure` 闭环。
+- 接入现有优惠券、库存、风险和用户响应逻辑。
+- 建立 100 条无答案泄漏的 smoke 场景。
+- 实现 random 和 rule-based Feed policy。
+- 运行回归测试并验证旧轨迹继续可用。
+- 发布 v0.2-alpha schema 和 smoke benchmark 报告。
+
+两周完成后再决定是否扩展到 5,000 条训练任务。若协议仍频繁变化，应优先修正环境，不进行昂贵的 LLM 轨迹生成。
 
 ## 13. Go / No-Go 标准
 
 在进入视频和 RL 大规模投入前，Phase 1 应满足：
 
+- 推荐决策单元已经从固定 `current_video` 升级为候选 `video-product-treatment` 曝光。
+- 每一步均包含普通内容与商业内容候选。
+- 视频与商品绑定关系由候选定义，Agent 不可任意篡改。
+- `FeedControlEnv` 与现有商品干预工具可以组合运行。
 - 测试任务无显式答案泄漏。
 - 数据 split 无实体级泄漏。
 - 至少四档策略表现有稳定梯度。
