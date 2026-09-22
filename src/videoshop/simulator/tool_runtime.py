@@ -26,9 +26,18 @@ class ToolRuntime:
         return [self.execute(state, request) for request in requests]
 
     def validate_action_evidence(self, action: AgentAction, results: list[ToolCallResult]) -> list[str]:
+        """Check that an action is grounded in the tool calls that preceded it.
+
+        Matching the evidence against the tool output is not sufficient on its own:
+        the agent could quote a real `find_substitute` result and then switch to a
+        different product. Evidence is therefore bound on three sides, the tool input,
+        the tool output, and the product the action finally commits to.
+        """
+
         violations: list[str] = []
         successful = [result for result in results if result.success]
         tool_outputs = {result.tool: result.output for result in successful}
+        tool_inputs = {result.tool: result.input for result in successful}
 
         if action.action_type == "show_coupon":
             coupon = action.evidence.get("coupon")
@@ -36,6 +45,10 @@ class ToolRuntime:
                 violations.append("missing_coupon_evidence")
             elif coupon != tool_outputs.get("get_coupon"):
                 violations.append("coupon_evidence_not_grounded_in_tool_result")
+            elif tool_inputs.get("get_coupon", {}).get("product_id") != action.product_id:
+                violations.append("coupon_evidence_is_for_a_different_product")
+            elif not coupon.get("available"):
+                violations.append("coupon_evidence_says_unavailable")
 
         if action.action_type == "switch_to_substitute":
             substitute = action.evidence.get("substitute")
@@ -43,6 +56,8 @@ class ToolRuntime:
                 violations.append("missing_substitute_evidence")
             elif substitute != tool_outputs.get("find_substitute"):
                 violations.append("substitute_evidence_not_grounded_in_tool_result")
+            elif substitute.get("product_id") != action.product_id:
+                violations.append("substitute_evidence_is_for_a_different_product")
 
         if action.action_type == "show_explanation" and not action.evidence:
             violations.append("missing_explanation_evidence")

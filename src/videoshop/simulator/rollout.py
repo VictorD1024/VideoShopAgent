@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict
 
 from videoshop.simulator.env import VideoShopEnv
+from videoshop.simulator.trajectory import SCHEMA_VERSION_V1
 
 
 def run_episode(env: VideoShopEnv, policy, episode_id: str) -> dict:
@@ -34,6 +35,7 @@ def run_episode(env: VideoShopEnv, policy, episode_id: str) -> dict:
         state = next_state
 
     return {
+        "schema_version": SCHEMA_VERSION_V1,
         "episode_id": episode_id,
         "user_profile": asdict(state.user_profile),
         "steps": steps,

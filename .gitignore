@@ -17,6 +17,7 @@ data/synthetic/*
 outputs/trajectories/*
 outputs/reports/*
 outputs/benchmarks/*
+outputs/feed_benchmarks/*
 
 !data/raw/README.md
 !data/processed/README.md
@@ -24,3 +25,4 @@ outputs/benchmarks/*
 !outputs/trajectories/README.md
 !outputs/reports/README.md
 !outputs/benchmarks/README.md
+!outputs/feed_benchmarks/README.md

@@ -18,6 +18,7 @@ from videoshop.data.scenarios import build_toy_scenarios
 from videoshop.data.synthetic import SyntheticCommerceConfig, build_synthetic_scenarios, build_synthetic_states, build_synthetic_videos
 from videoshop.simulator.env import VideoShopEnv
 from videoshop.simulator.metrics import evaluate_episode
+from videoshop.simulator.trajectory import SCHEMA_VERSION_V1
 
 
 def run_llm_episode(
@@ -71,6 +72,7 @@ def run_llm_episode(
         info = {"state": step_info["state"]}
 
     episode = {
+        "schema_version": SCHEMA_VERSION_V1,
         "episode_id": episode_id,
         "scenario_id": scenario_id,
         "objective": scenario.objective,
@@ -130,6 +132,7 @@ def run_llm_episode_with_retries(
     scenario = env.scenarios[scenario_id]
     last_error = attempt_errors[-1]
     return {
+        "schema_version": SCHEMA_VERSION_V1,
         "episode_id": episode_id,
         "scenario_id": scenario_id,
         "objective": scenario.objective,

@@ -10,6 +10,7 @@ from videoshop.data.synthetic import SyntheticCommerceConfig, build_synthetic_sc
 from videoshop.policies import RandomPolicy, RuleBasedPolicy
 from videoshop.simulator.env import VideoShopEnv
 from videoshop.simulator.metrics import evaluate_episode
+from videoshop.simulator.trajectory import SCHEMA_VERSION_V1
 
 
 def build_policy(name: str, seed: int):
@@ -58,6 +59,7 @@ def run_scenario_episode(
         state = next_state
 
     return {
+        "schema_version": SCHEMA_VERSION_V1,
         "episode_id": episode_id,
         "scenario_id": scenario_id,
         "objective": scenario.objective,

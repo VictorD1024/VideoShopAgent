@@ -32,17 +32,29 @@ class FunctionCallingAgent:
         *,
         max_tool_rounds: int = 4,
         include_few_shots: bool = True,
+        system_prompt: str | None = None,
+        few_shots: list[dict[str, str]] | None = None,
     ) -> None:
         self.client = client
         self.max_tool_rounds = max_tool_rounds
         self.include_few_shots = include_few_shots
+        # The composite environment needs a different brief: the clip and anchor product
+        # are already fixed, and coupon availability is only knowable through get_coupon.
+        # `FeedInterventionEnv` / `build_intervention_agent` swap these for the
+        # intervention versions; the defaults here stay the frozen v1 protocol.
+        self.system_prompt = system_prompt or build_system_prompt()
+        self.few_shots = few_shots
         self.tools = video_shop_tool_specs()
         self.runtime = ToolRuntime()
 
-    def act(self, observation: Observation, state: EnvState) -> AgentStep:
-        messages: list[dict[str, Any]] = [{"role": "system", "content": build_system_prompt()}]
+    def act(self, observation: Any, state: EnvState) -> AgentStep:
+        """`observation` is a v1 `Observation` or a feed `InterventionObservation`.
+
+        Both are dataclasses that `observation_to_user_message` serialises the same way.
+        """
+        messages: list[dict[str, Any]] = [{"role": "system", "content": self.system_prompt}]
         if self.include_few_shots:
-            messages.extend(few_shot_messages())
+            messages.extend(self.few_shots if self.few_shots is not None else few_shot_messages())
         messages.append(observation_to_user_message(observation))
 
         collected_requests: list[ToolCallRequest] = []

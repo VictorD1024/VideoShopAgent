@@ -4,6 +4,71 @@
 > 更新日期：2026-09-17  
 > 目标：将 VideoShopAgent 从可运行的合成环境，升级为可训练、可评测、可扩展的视频原生电商 Agent 基础设施。
 
+## 0. 实施状态（v0.2-alpha）
+
+本节记录代码实际落地情况，以代码为准。下文其余章节保持原规划文本。
+
+已完成，位于 `src/videoshop/feed/`：
+
+| 规划项 | 落地位置 | 说明 |
+| --- | --- | --- |
+| `ExposureCandidate` / `FeedDecision` / `ScenarioSpec` | `feed/schemas.py` | 含闭集校验、序列化往返、公开／隐藏边界 |
+| `RewardVector` + 5 种标量化配置 | `feed/reward.py` | `risk_cost` 为非负量，标量化时做减法；提供 per-term 明细 |
+| `CandidateProvider` | `feed/candidate_provider.py` | 同时产出 organic / seller / affiliate / ad；`base_scores` 是对私有真值加噪且商业偏乐观的估计 |
+| `FeedControlEnv` Top-1 闭环 | `feed/control_env.py` | `serve_exposure`，硬约束拦截，v2 轨迹记录，同 seed 可完整重放 |
+| **双层组合环境** | `feed/composite_env.py` | `FeedInterventionEnv`：feed 选曝光，干预层走真实 `ToolRuntime` + 证据校验决定 treatment |
+| Feed policy baseline | `feed/policies.py` | `random`、`always_organic`、`greedy_gmv`、`rule_based`；干预基线 `anchor_rule_based`、`trusting` |
+| 100 条无泄漏 smoke 场景 | `feed/scenarios.py` | instruction 构造时扫描答案泄漏；`public_context` 递归扫描嵌套私有 key；场景族只存在私有 oracle 中 |
+| Benchmark 协议 | `feed/benchmark.py`、`feed/splits.py`、`scripts/run_feed_benchmark.py` | bootstrap CI、`dataset_hash`、**实体级 split 隔离**、oracle 天花板参考 |
+| v1 legacy adapter 与 schema 版本 | `feed/legacy.py`、`simulator/trajectory.py` | 兼容 `action` 与 `agent_step.final_action` 两种结构；无法识别则报错；以真实 Qwen／DeepSeek 轨迹做回归 |
+
+### 0.1 针对 review 意见的修复（2026-09-18）
+
+| 问题 | 结论 | 修复 |
+| --- | --- | --- |
+| P1 v1 轨迹转换静默丢失 LLM 动作 | 属实，且比报告更严重：5 个文件共 747 step **全部**塌缩为 `organic/none` | `legacy_action_of` 同时读两种路径，无法识别直接抛错；真实轨迹文件纳入回归测试 |
+| P1 `train`／`frozen_eval` 未真正隔离 | 属实（用户 39/39、视频 96/96、商品 612/647 重叠）。另外发现同一 episode 第 0 步与后续步骤使用了**不同 catalog**（同 id 不同属性） | `feed/splits.py` 按品类分层切分出互不相交实体池；split 自带 provider，全程单一 catalog |
+| P1 Feed 层未接入 Intervention／ToolCalling | 属实 | 新增 `FeedInterventionEnv`；candidate 的 `treatment` 降级为"报价"，由干预层用工具核实后决定实际 treatment |
+| P2 防泄漏只查顶层 key | 属实 | `find_forbidden_keys` 递归扫描 dict/list 并返回路径 |
+| P2 `risk_averse` 只是标签 | 属实 | `truth_for` 引入 `risk_drag = risk_sensitivity × review_risk`，压低 click／purchase |
+
+组合层顺带修掉了一个设计死角：优惠券若在 feed 层就判定无效，候选会被直接拦截，v1 的"假券陷阱"根本无法到达干预层。现在由 `ExposureTruth.coupon_available` 单独承载真值（`coupon_trap_rate`），feed-only 策略无从分辨，只有调用 `get_coupon` 才能发现，未经核实展示则计 `fake_coupon` 并计入 `risk_cost`。
+
+### 0.2 第二轮 review 修复（2026-09-18）
+
+| 问题 | 结论 | 修复 |
+| --- | --- | --- |
+| P1 `FeedSplit` 未从结构上杜绝 catalog 混用 | 属实，复现 55 次池外商品 | `run_feed_benchmark` 接受 `FeedSplit`，或强制 `scenarios`／`provider` 成对；`FeedControlEnv.reset` 兜底校验实体池与商品属性 |
+| P1 `find_substitute` 证据未绑定最终商品 | 属实 | `validate_action_evidence` 三方绑定（工具输入／输出／action 商品），组合层不再对 `switch_to_substitute` 无条件放行 |
+| P2 coupon 伪库存跨进程不确定 | 属实 | 改用 `sha256`，并加了跨 `PYTHONHASHSEED` 子进程回归测试 |
+| P2 拒绝干预会把广告洗成 organic | 属实 | schema 分离"内容来源"与"商品 treatment"：商业来源可带 `treatment=none` 且不带商品；新增 `sells_a_product` |
+| P2 feed-only 与 composite 券结果不可比 | 属实 | 假券在 provider 侧就不再给转化提升和折后价，两个环境语义一致；`base_scores` 仍按"宣称的券"计算，陷阱不从公开分数泄漏 |
+
+第 4 项修好后暴露了我自己基线里的一个错误：`AnchorInterventionPolicy` 原先会因用户疲劳而 `delay`。当拒绝不再能把广告洗成 organic，这种退让等于"照付广告烦扰、却不要商业收益"，反而让组合环境低于 feed-only。疲劳退让本就是 feed 层的决策（干脆别投这条广告），干预层改不了视频，所以已移除该规则，只在锚定商品确实不可售且无替代时才拒绝。
+
+修复后三者关系是自洽的：**会验证的干预层与 feed-only 等价，不验证的严格更差**。干预层是责任面而非加分项。另外实测默认配置下优惠券只占候选约 5%、100 个 episode 里只投出 1 次假券，因此新增 `--coupon-treatment-rate`／`--coupon-trap-rate` 以便加压该轴。
+
+`oracle_step_greedy` 是**逐步贪心**参考而非真正的多步上限：在 12 场景规模下它可能被 `rule_based` 反超，n≥40 后排序稳定。相关断言已移到样本足够的 benchmark 测试中。
+
+### 0.3 LLM 接入前协议加固（2026-09-18）
+
+| 问题 | 结论 | 修复 |
+| --- | --- | --- |
+| P1 LLM 观察协议未准备好 | 属实：v1 `Observation` 含 `coupon_inventory`，且没有曝光上下文 | 新增 `InterventionObservation`；公开 `anchor_product_id`／`offered_treatment`／`source_type`；去掉券权威字段。v1 观察面保持不动，以免冻结核验轨迹。裸 `FunctionCallingAgent` 进入组合环境会自动换成干预 brief 和 few-shot |
+| P1 组合环境压扁 `AgentStep` | 属实 | intervention record 保留完整 `agent_step`（tool_requests、reasoning_summary、tool_call_trace、system_prompt）以及当时的 observation |
+| P2 catalog 校验只比价格 | 属实 | `_entity_fingerprint` 比较规范化后的完整商品／视频 payload，含 review_risk、rating、inventory、coupon、视频属性；JSON 往返（tuple→list）不误报 |
+| P2 假券点击记入 `used_coupons` | 属实 | 仅当 `truth.coupon_available` 且点击时才记账 |
+| P2 商业密度按 `exposed_products` | 属实 | session_summary 增加 `commercial_exposures`，按已播出的 ad/seller/affiliate 计数；密度规则改读该字段 |
+
+尚未开始，仍为规划：`rank_exposures`、视频原生理解（§6.2）、动态世界状态（§6.3）、多目标 RL 训练（§6.4）、feed-to-shop 交接（§6.5）、L2/L4 数据层（§7）。
+
+已知未修复问题：
+
+- v1 synthetic 场景的 `objective` 仍然直接点名预期动作（`data/synthetic.py`），并经 `env.current_task` 进入 `Observation.task`。v0.2 的 `ScenarioSpec` 不受影响，但 v1 侧的泄漏需要单独清理。
+- Feed 层每个 `video x product` 只给出一种 treatment，treatment 目前只是干预层的选择维度，还不是 feed 层的。
+- `FeedInterventionEnv` 的 LLM 协议已就绪，但尚未对真实 Qwen／DeepSeek 跑干预层评测。
+- smoke split 上 `rule_based`（2.27）与 `always_organic`（2.38）置信区间重叠，规则策略并未稳定胜过"不投商业内容"；两者在 `frozen_eval` 和 `gmv_first`／`clearance_campaign` 目标上才分开。
+
 ## 1. 项目定位
 
 VideoShopAgent 不应成为另一个商品搜索或网页购物环境。项目应聚焦于短视频内容消费中的 Agent 决策问题：
